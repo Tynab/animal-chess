@@ -79,6 +79,13 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Large derived datasets and temporary training checkpoints
+data/dark.csv
+data/light.csv
+data/animal_chess.csv
+data/chunks/
+models/fold_*.keras
+
 # IPython
 profile_default/
 ipython_config.py

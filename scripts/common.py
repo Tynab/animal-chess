@@ -1,22 +1,40 @@
+"""Hằng số và ánh xạ dùng chung của Animal Chess.
+
+Module gom cấu hình bàn cờ, trạng thái, tài nguyên và thông tin quân cờ vào một
+nơi duy nhất. Các lớp giữ API cũ để những module game không phải biết cách tài
+nguyên được tổ chức trên đĩa.
+"""
+
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+MODEL_DIR = PROJECT_ROOT / "models"
+BEST_MODEL_PATH = MODEL_DIR / "best_model.h5"
+
 W = 7
 H = 9
 FPS = 60
-TIT = 'Animal Chess'
+TIT = "Animal Chess"
 SPAN = 100
 
-class Size:
-    '''
-    A class that represents the sizes of various elements in the game.
 
-    Attributes:
-    - BOARD (tuple): The size of the game board.
-    - SUBSCREEN (tuple): The size of the subscreen.
-    - TOTAL (tuple): The total size of the game window.
-    - CELL (tuple): The size of each cell on the game board.
-    - ARTWORK (tuple): The size of the artwork images.
-    - START_BTN (tuple): The size of the start button.
-    - PADDING (tuple): The padding size for elements.
-    '''
+def _asset_path(*parts: str) -> str:
+    """Trả về đường dẫn tuyệt đối để game chạy được từ mọi thư mục hiện hành."""
+
+    return str(PROJECT_ROOT.joinpath("assets", *parts))
+
+
+def _select_by_side(side: str, dark_value, light_value):
+    """Chọn giá trị tương ứng với phe tối hoặc phe sáng."""
+
+    return dark_value if PlayerSide.is_dark(side) else light_value
+
+
+class Size:
+    """Kích thước cửa sổ, bàn cờ và các thành phần giao diện."""
+
     BOARD = (W * SPAN, H * SPAN)
     SUBSCREEN = (500, BOARD[1])
     TOTAL = (BOARD[0] + SUBSCREEN[0], BOARD[1])
@@ -25,54 +43,27 @@ class Size:
     START_BTN = (190, 50)
     PADDING = (10, 10)
 
-class ImagePath:
-    '''
-    A class that represents the file paths to various images used in the game.
 
-    Attributes:
-    - COVER (str): The file path to the cover image.
-    - START_BTN (str): The file path to the start button image.
-    - GUIDE (str): The file path to the guide image.
-    - CARD (str): The file path to the card image.
-    '''
-    COVER = 'assets/images/cover.png'
-    START_BTN = 'assets/images/button.png'
-    GUIDE = 'assets/images/guide.png'
-    CARD = 'assets/images/card.png'
+class ImagePath:
+    """Đường dẫn ảnh nền của giao diện."""
+
+    COVER = _asset_path("images", "cover.png")
+    START_BTN = _asset_path("images", "button.png")
+    GUIDE = _asset_path("images", "guide.png")
+    CARD = _asset_path("images", "card.png")
+
 
 class FontName:
-    '''
-    A class that represents the names of various fonts used in the game.
+    """Tên font ưu tiên; Pygame sẽ tự chọn font thay thế khi máy không có font."""
 
-    Attributes:
-    - TIT (str): The name of the font used for titles, 'Garamond'.
-    - BTN (str): The name of the font used for buttons, 'Lato'.
-    - TXT (str): The name of the font used for general text, 'Arial'.
-    '''
-    TIT = 'Garamond'
-    BTN = 'Lato'
-    TXT = 'Arial'
+    TIT = "Garamond"
+    BTN = "Lato"
+    TXT = "Arial"
+
 
 class Color:
-    '''
-    The color of the pieces.
-    
-    Attributes:
-    - BLACK (tuple): The color black.
-    - WHITE (tuple): The color white.
-    - RED (tuple): The color red.
-    - ORANGE (tuple): The color orange.
-    - YELLOW (tuple): The color yellow.
-    - GREEN (tuple): The color green.
-    - BLUE (tuple): The color blue.
-    - PINK (tuple): The color pink.
-    - PURPLE (tuple): The color purple.
-    - CYAN (tuple): The color cyan.
-    - GREY (tuple): The color grey.
+    """Bảng màu RGB dùng khi render."""
 
-    Methods:
-    - star_color(side): Returns the color of the star based on the player side.
-    '''
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
     RED = (255, 0, 0)
@@ -86,255 +77,86 @@ class Color:
     GREY = (128, 128, 128)
 
     @staticmethod
-    def star_color(side):
-        '''
-        Returns the color of the star based on the player side.
+    def star_color(side: str) -> tuple[int, int, int]:
+        """Trả về màu đánh dấu quân theo phe."""
 
-        Args:
-            side (str): The player side.
+        return Color.ORANGE if PlayerSide.is_dark(side) else Color.CYAN
 
-        Returns:
-            tuple: The color of the star.
-        '''
-        return PlayerSide.is_dark(side) and Color.ORANGE or Color.CYAN
 
 class GameMode:
-    '''
-    A class that represents the game modes.
+    """Các chế độ người-người, người-máy và máy-máy."""
 
-    Attributes:
-    - PvP (int): Player vs Player game mode.
-    - PvC (int): Player vs Computer game mode.
-    - CvC (int): Computer vs Computer game mode.
-
-    Methods:
-    - is_pvp(mode): Check if the mode is player vs player.
-    - is_pvc(mode): Check if the mode is player vs computer.
-    - is_cvc(mode): Check if the mode is computer vs computer.
-    '''
     PvP = 1
     PvC = 2
     CvC = 3
 
     @staticmethod
-    def is_pvp(mode):
-        '''
-        Check if the mode is player vs player.
-
-        Args:
-            mode (int): The mode.
-
-        Returns:
-            bool: True if the mode is player vs player, False otherwise.
-        '''
+    def is_pvp(mode: int) -> bool:
         return mode == GameMode.PvP
-    
+
     @staticmethod
-    def is_pvc(mode):
-        '''
-        Check if the mode is player vs computer.
-
-        Args:
-            mode (int): The mode.
-
-        Returns:
-            bool: True if the mode is player vs computer, False otherwise.
-        '''
+    def is_pvc(mode: int) -> bool:
         return mode == GameMode.PvC
-    
+
     @staticmethod
-    def is_cvc(mode):
-        '''
-        Check if the mode is computer vs computer.
-
-        Args:
-            mode (int): The mode.
-
-        Returns:
-            bool: True if the mode is computer vs computer, False otherwise.
-        '''
+    def is_cvc(mode: int) -> bool:
         return mode == GameMode.CvC
 
-class GameState:
-    '''
-    The state of the game.
-    
-    Attributes:
-    - NEW (int): The new game state.
-    - RUNNING (int): The running game state.
-    - OVER (int): The over game state.
 
-    Methods:
-    - is_new(state): Check if the state is new.
-    - is_running(state): Check if the state is running.
-    - is_over(state): Check if the state is over.
-    '''
+class GameState:
+    """Vòng đời của một ván chơi."""
+
     NEW = 1
     RUNNING = 2
     OVER = 3
 
     @staticmethod
-    def is_new(state):
-        '''
-        Check if the state is new.
-
-        Args:
-            state (int): The state.
-
-        Returns:
-            bool: True if the state is new, False otherwise.
-        '''
+    def is_new(state: int) -> bool:
         return state == GameState.NEW
-    
+
     @staticmethod
-    def is_running(state):
-        '''
-        Check if the state is running.
-
-        Args:
-            state (int): The state.
-
-        Returns:
-            bool: True if the state is running, False otherwise.
-        '''
+    def is_running(state: int) -> bool:
         return state == GameState.RUNNING
-    
+
     @staticmethod
-    def is_over(state):
-        '''
-        Check if the state is over.
-
-        Args:
-            state (int): The state.
-
-        Returns:
-            bool: True if the state is over, False otherwise.
-        '''
+    def is_over(state: int) -> bool:
         return state == GameState.OVER
 
+
 class PlayerSide:
-    '''
-    The side of the player.
+    """Định danh hai phe và các phép chuyển đổi liên quan."""
 
-    Attributes:
-    - DARK (str): The dark side.
-    - LIGHT (str): The light side.
-
-    Methods:
-    - is_dark(side): Check if the side is dark.
-    - is_light(side): Check if the side is light.
-    - player_den_position(side): Get the den position of the side.
-    - opponent_den_position(side): Get the den position of the side.
-    - player_of(side): Get the player side.
-    - opponent_of(side): Get the opponent side.
-    '''
-    DARK = 'Dark'
-    LIGHT = 'Light'
+    DARK = "Dark"
+    LIGHT = "Light"
 
     @staticmethod
-    def is_dark(side):
-        '''
-        Check if the side is dark.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            bool: True if the side is dark, False otherwise.
-        '''
+    def is_dark(side: str) -> bool:
         return side == PlayerSide.DARK
-    
+
     @staticmethod
-    def is_light(side):
-        '''
-        Check if the side is light.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            bool: True if the side is light, False otherwise.
-        '''
+    def is_light(side: str) -> bool:
         return side == PlayerSide.LIGHT
-    
-    @staticmethod
-    def player_den_position(side):
-        '''
-        Get the den position of the side.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The den position.
-        '''
-        return PlayerSide.is_dark(side) and CellPosition.DARK_DEN or CellPosition.LIGHT_DEN
 
     @staticmethod
-    def opponent_den_position(side):
-        '''
-        Get the den position of the side.
+    def player_den_position(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_DEN, CellPosition.LIGHT_DEN)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The den position.
-        '''
-        return PlayerSide.is_dark(side) and CellPosition.LIGHT_DEN or CellPosition.DARK_DEN
-    
     @staticmethod
-    def player_of(side):
-        '''
-        Get the player side.
+    def opponent_den_position(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.LIGHT_DEN, CellPosition.DARK_DEN)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The player side.
-        '''
+    @staticmethod
+    def player_of(side: str) -> str:
         return side
 
     @staticmethod
-    def opponent_of(side):
-        '''
-        Get the opponent side.
+    def opponent_of(side: str) -> str:
+        return PlayerSide.LIGHT if PlayerSide.is_dark(side) else PlayerSide.DARK
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The opponent side.
-        '''
-        return PlayerSide.is_dark(side) and PlayerSide.LIGHT or PlayerSide.DARK
 
 class CellLabel:
-    '''
-    The label of the cell.
-    
-    Attributes:
-    - EMPTY (int): Represents an empty cell.
-    - RIVER (int): Represents a river cell.
-    - DARK_TRAP (int): Represents a trap cell for the dark side.
-    - LIGHT_TRAP (int): Represents a trap cell for the light side.
-    - DARK_DEN (int): Represents a den cell for the dark side.
-    - LIGHT_DEN (int): Represents a den cell for the light side.
+    """Loại địa hình của một ô và các hàm kiểm tra theo phe."""
 
-    Methods:
-    - is_empty(label): Check if the label is empty.
-    - is_river(label): Check if the label is a river.
-    - is_dark_trap(label): Check if the label is a dark trap.
-    - is_light_trap(label): Check if the label is a light trap.
-    - is_trap(label): Check if the label is a trap.
-    - is_player_trap(label, side): Check if the label is a player trap.
-    - is_opponent_trap(label, side): Check if the label is an opponent trap.
-    - is_dark_den(label): Check if the label is a dark den.
-    - is_light_den(label): Check if the label is a light den.
-    - is_den(label): Check if the label is a den.
-    - is_player_den(label, side): Check if the label is a player den.
-    - is_opponent_den(label, side): Check if the label is an opponent den.
-    '''
     EMPTY = 1
     RIVER = 2
     DARK_TRAP = 3
@@ -343,217 +165,57 @@ class CellLabel:
     LIGHT_DEN = 6
 
     @staticmethod
-    def is_empty(label):
-        '''
-        Check if the label is empty.
-
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is empty, False otherwise.
-        '''
+    def is_empty(label: int) -> bool:
         return label == CellLabel.EMPTY
-    
+
     @staticmethod
-    def is_river(label):
-        '''
-        Check if the label is a river.
-
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is a river, False otherwise.
-        '''
+    def is_river(label: int) -> bool:
         return label == CellLabel.RIVER
-    
+
     @staticmethod
-    def is_dark_trap(label):
-        '''
-        Check if the label is a dark trap.
-
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is a dark trap, False otherwise.
-        '''
+    def is_dark_trap(label: int) -> bool:
         return label == CellLabel.DARK_TRAP
-    
+
     @staticmethod
-    def is_light_trap(label):
-        '''
-        Check if the label is a light trap.
-
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is a light trap, False otherwise.
-        '''
+    def is_light_trap(label: int) -> bool:
         return label == CellLabel.LIGHT_TRAP
-    
-    @staticmethod
-    def is_trap(label):
-        '''
-        Check if the label is a trap.
-
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is a trap, False otherwise.
-        '''
-        return CellLabel.is_dark_trap(label) or CellLabel.is_light_trap(label)
-    
-    @staticmethod
-    def is_player_trap(label, side):
-        '''
-        Check if the label is a player trap.
-
-        Args:
-            label (int): The label.
-            side (str): The side.
-
-        Returns:
-            bool: True if the label is a player trap, False otherwise.
-        '''
-        return CellLabel.is_dark_trap(label) and PlayerSide.is_dark(side) or CellLabel.is_light_trap(label) and PlayerSide.is_light(side)
 
     @staticmethod
-    def is_opponent_trap(label, side):
-        '''
-        Check if the label is an opponent trap.
-
-        Args:
-            label (int): The label.
-            side (str): The side.
-
-        Returns:
-            bool: True if the label is an opponent trap, False otherwise.
-        '''
-        return CellLabel.is_dark_trap(label) and PlayerSide.is_light(side) or CellLabel.is_light_trap(label) and PlayerSide.is_dark(side)
+    def is_trap(label: int) -> bool:
+        return label in (CellLabel.DARK_TRAP, CellLabel.LIGHT_TRAP)
 
     @staticmethod
-    def is_dark_den(label):
-        '''
-        Check if the label is a dark den.
+    def is_player_trap(label: int, side: str) -> bool:
+        return label == _select_by_side(side, CellLabel.DARK_TRAP, CellLabel.LIGHT_TRAP)
 
-        Args:
-            label (int): The label.
+    @staticmethod
+    def is_opponent_trap(label: int, side: str) -> bool:
+        return label == _select_by_side(side, CellLabel.LIGHT_TRAP, CellLabel.DARK_TRAP)
 
-        Returns:
-            bool: True if the label is a dark den, False otherwise.
-        '''
+    @staticmethod
+    def is_dark_den(label: int) -> bool:
         return label == CellLabel.DARK_DEN
-    
+
     @staticmethod
-    def is_light_den(label):
-        '''
-        Check if the label is a light den.
-
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is a light den, False otherwise.
-        '''
+    def is_light_den(label: int) -> bool:
         return label == CellLabel.LIGHT_DEN
-    
+
     @staticmethod
-    def is_den(label):
-        '''
-        Check if the label is a den.
+    def is_den(label: int) -> bool:
+        return label in (CellLabel.DARK_DEN, CellLabel.LIGHT_DEN)
 
-        Args:
-            label (int): The label.
-
-        Returns:
-            bool: True if the label is a den, False otherwise.
-        '''
-        return CellLabel.is_dark_den(label) or CellLabel.is_light_den(label)
-    
     @staticmethod
-    def is_player_den(label, side):
-        '''
-        Check if the label is a player den.
+    def is_player_den(label: int, side: str) -> bool:
+        return label == _select_by_side(side, CellLabel.DARK_DEN, CellLabel.LIGHT_DEN)
 
-        Args:
-            label (int): The label.
-            side (str): The side.
-
-        Returns:
-            bool: True if the label is a player den, False otherwise.
-        '''
-        return CellLabel.is_dark_den(label) and PlayerSide.is_dark(side) or CellLabel.is_light_den(label) and PlayerSide.is_light(side)
-    
     @staticmethod
-    def is_opponent_den(label, side):
-        '''
-        Check if the label is an opponent den.
+    def is_opponent_den(label: int, side: str) -> bool:
+        return label == _select_by_side(side, CellLabel.LIGHT_DEN, CellLabel.DARK_DEN)
 
-        Args:
-            label (int): The label.
-            side (str): The side.
 
-        Returns:
-            bool: True if the label is an opponent den, False otherwise.
-        '''
-        return CellLabel.is_dark_den(label) and PlayerSide.is_light(side) or CellLabel.is_light_den(label) and PlayerSide.is_dark(side)
-    
 class CellPosition:
-    '''
-    The position of the cell.
+    """Tọa độ địa hình và vị trí xuất phát của các quân."""
 
-    Attributes:
-    - RIVER_1_1 (tuple): The position of the river 1-1 cell.
-    - RIVER_1_2 (tuple): The position of the river 1-2 cell.
-    - RIVER_1_3 (tuple): The position of the river 1-3 cell.
-    - RIVER_1_4 (tuple): The position of the river 1-4 cell.
-    - RIVER_1_5 (tuple): The position of the river 1-5 cell.
-    - RIVER_1_6 (tuple): The position of the river 1-6 cell.
-    - RIVER_2_1 (tuple): The position of the river 2-1 cell.
-    - RIVER_2_2 (tuple): The position of the river 2-2 cell.
-    - RIVER_2_3 (tuple): The position of the river 2-3 cell.
-    - RIVER_2_4 (tuple): The position of the river 2-4 cell.
-    - RIVER_2_5 (tuple): The position of the river 2-5 cell.
-    - RIVER_2_6 (tuple): The position of the river 2-6 cell.
-    - DARK_TRAP_1 (tuple): The position of the dark trap 1 cell.
-    - DARK_TRAP_2 (tuple): The position of the dark trap 2 cell.
-    - DARK_TRAP_3 (tuple): The position of the dark trap 3 cell.
-    - LIGHT_TRAP_1 (tuple): The position of the light trap 1 cell.
-    - LIGHT_TRAP_2 (tuple): The position of the light trap 2 cell.
-    - LIGHT_TRAP_3 (tuple): The position of the light trap 3 cell.
-    - DARK_DEN (tuple): The position of the dark den cell.
-    - LIGHT_DEN (tuple): The position of the light den cell.
-    - DARK_RAT (tuple): The position of the dark rat cell.
-    - DARK_CAT (tuple): The position of the dark cat cell.
-    - DARK_DOG (tuple): The position of the dark dog cell.
-    - DARK_WOLF (tuple): The position of the dark wolf cell.
-    - DARK_LEOPARD (tuple): The position of the dark leopard cell.
-    - DARK_TIGER (tuple): The position of the dark tiger cell.
-    - DARK_LION (tuple): The position of the dark lion cell.
-    - DARK_ELEPHANT (tuple): The position of the dark elephant cell.
-    - LIGHT_RAT (tuple): The position of the light rat cell.
-    - LIGHT_CAT (tuple): The position of the light cat cell.
-    - LIGHT_DOG (tuple): The position of the light dog cell.
-    - LIGHT_WOLF (tuple): The position of the light wolf cell.
-    - LIGHT_LEOPARD (tuple): The position of the light leopard cell.
-    - LIGHT_TIGER (tuple): The position of the light tiger cell.
-    - LIGHT_LION (tuple): The position of the light lion cell.
-    - LIGHT_ELEPHANT (tuple): The position of the light elephant cell.
-
-    Methods:
-    - rat(side): Get the position of the rat.
-    - cat(side): Get the position of the cat.
-    - dog(side): Get the position of the dog.
-    - wolf(side): Get the position of the wolf.
-    - leopard(side): Get the position of the leopard.
-    - tiger(side): Get the position of the tiger.
-    - lion(side): Get the position of the lion.
-    - elephant(side): Get the position of the elephant.
-    '''
     RIVER_1_1 = (1, 3)
     RIVER_1_2 = (2, 3)
     RIVER_1_3 = (1, 4)
@@ -591,326 +253,146 @@ class CellPosition:
     LIGHT_LION = (6, 8)
     LIGHT_ELEPHANT = (0, 6)
 
+    RIVERS = (
+        RIVER_1_1,
+        RIVER_1_2,
+        RIVER_1_3,
+        RIVER_1_4,
+        RIVER_1_5,
+        RIVER_1_6,
+        RIVER_2_1,
+        RIVER_2_2,
+        RIVER_2_3,
+        RIVER_2_4,
+        RIVER_2_5,
+        RIVER_2_6,
+    )
+    DARK_TRAPS = (DARK_TRAP_1, DARK_TRAP_2, DARK_TRAP_3)
+    LIGHT_TRAPS = (LIGHT_TRAP_1, LIGHT_TRAP_2, LIGHT_TRAP_3)
+
     @staticmethod
-    def rat(side):
-        '''
-        Get the position of the rat.
+    def rat(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_RAT, CellPosition.LIGHT_RAT)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the rat.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_RAT or CellPosition.LIGHT_RAT
-    
     @staticmethod
-    def cat(side):
-        '''
-        Get the position of the cat.
+    def cat(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_CAT, CellPosition.LIGHT_CAT)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the cat.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_CAT or CellPosition.LIGHT_CAT
-    
     @staticmethod
-    def dog(side):
-        '''
-        Get the position of the dog.
+    def dog(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_DOG, CellPosition.LIGHT_DOG)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the dog.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_DOG or CellPosition.LIGHT_DOG
-    
     @staticmethod
-    def wolf(side):
-        '''
-        Get the position of the wolf.
+    def wolf(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_WOLF, CellPosition.LIGHT_WOLF)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the wolf.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_WOLF or CellPosition.LIGHT_WOLF
-    
     @staticmethod
-    def leopard(side):
-        '''
-        Get the position of the leopard.
+    def leopard(side: str) -> tuple[int, int]:
+        return _select_by_side(
+            side, CellPosition.DARK_LEOPARD, CellPosition.LIGHT_LEOPARD
+        )
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the leopard.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_LEOPARD or CellPosition.LIGHT_LEOPARD
-    
     @staticmethod
-    def tiger(side):
-        '''
-        Get the position of the tiger.
+    def tiger(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_TIGER, CellPosition.LIGHT_TIGER)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the tiger.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_TIGER or CellPosition.LIGHT_TIGER
-    
     @staticmethod
-    def lion(side):
-        '''
-        Get the position of the lion.
+    def lion(side: str) -> tuple[int, int]:
+        return _select_by_side(side, CellPosition.DARK_LION, CellPosition.LIGHT_LION)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the lion.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_LION or CellPosition.LIGHT_LION
-    
     @staticmethod
-    def elephant(side):
-        '''
-        Get the position of the elephant.
+    def elephant(side: str) -> tuple[int, int]:
+        return _select_by_side(
+            side, CellPosition.DARK_ELEPHANT, CellPosition.LIGHT_ELEPHANT
+        )
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            tuple: The position of the elephant.
-        '''
-        return side == PlayerSide.DARK and CellPosition.DARK_ELEPHANT or CellPosition.LIGHT_ELEPHANT
 
 class CellImage:
-    '''
-    The image of the cell.
+    """Ảnh đại diện cho hang, bẫy và sáu mảnh sông."""
 
-    Attributes:
-    - DEN (str): The den image.
-    - TRAP (str): The trap image.
-    - RIVER_1 (str): The river 1 image.
-    - RIVER_2 (str): The river 2 image.
-    - RIVER_3 (str): The river 3 image.
-    - RIVER_4 (str): The river 4 image.
-    - RIVER_5 (str): The river 5 image.
-    - RIVER_6 (str): The river 6 image.
-    '''
-    DEN = 'assets/images/den.png'
-    TRAP = 'assets/images/trap.png'
-    RIVER_1 = 'assets/images/rivers/river_1.png'
-    RIVER_2 = 'assets/images/rivers/river_2.png'
-    RIVER_3 = 'assets/images/rivers/river_3.png'
-    RIVER_4 = 'assets/images/rivers/river_4.png'
-    RIVER_5 = 'assets/images/rivers/river_5.png'
-    RIVER_6 = 'assets/images/rivers/river_6.png'
+    DEN = _asset_path("images", "den.png")
+    TRAP = _asset_path("images", "trap.png")
+    RIVER_1 = _asset_path("images", "rivers", "river_1.png")
+    RIVER_2 = _asset_path("images", "rivers", "river_2.png")
+    RIVER_3 = _asset_path("images", "rivers", "river_3.png")
+    RIVER_4 = _asset_path("images", "rivers", "river_4.png")
+    RIVER_5 = _asset_path("images", "rivers", "river_5.png")
+    RIVER_6 = _asset_path("images", "rivers", "river_6.png")
+    RIVERS = (RIVER_1, RIVER_2, RIVER_3, RIVER_4, RIVER_5, RIVER_6) * 2
+
 
 class PieceName:
-    '''
-    The name of the piece.
-    
-    Attributes:
-    - DARK_RAT (str): The name of the dark rat.
-    - DARK_CAT (str): The name of the dark cat.
-    - DARK_DOG (str): The name of the dark dog.
-    - DARK_WOLF (str): The name of the dark wolf.
-    - DARK_LEOPARD (str): The name of the dark leopard.
-    - DARK_TIGER (str): The name of the dark tiger.
-    - DARK_LION (str): The name of the dark lion.
-    - DARK_ELEPHANT (str): The name of the dark elephant.
-    - LIGHT_RAT (str): The name of the light rat.
-    - LIGHT_CAT (str): The name of the light cat.
-    - LIGHT_DOG (str): The name of the light dog.
-    - LIGHT_WOLF (str): The name of the light wolf.
-    - LIGHT_LEOPARD (str): The name of the light leopard.
-    - LIGHT_TIGER (str): The name of the light tiger.
-    - LIGHT_LION (str): The name of the light lion.
-    - LIGHT_ELEPHANT (str): The name of the light elephant.
+    """Tên hiển thị riêng của từng quân ở hai phe."""
 
-    Methods:
-    - rat(side): Get the name of the rat.
-    - cat(side): Get the name of the cat.
-    - dog(side): Get the name of the dog.
-    - wolf(side): Get the name of the wolf.
-    - leopard(side): Get the name of the leopard.
-    - tiger(side): Get the name of the tiger.
-    - lion(side): Get the name of the lion.
-    - elephant(side): Get the name of the elephant.
-    '''
-    DARK_RAT = 'Rat'
-    DARK_CAT = 'Sphynx'
-    DARK_DOG = 'Saluki'
-    DARK_WOLF = 'Grey Wolf'
-    DARK_LEOPARD = 'Black Panther'
-    DARK_TIGER = 'White Tiger'
-    DARK_LION = 'Smilodon'
-    DARK_ELEPHANT = 'Mammoth'
-    LIGHT_RAT = 'Mouse'
-    LIGHT_CAT = 'Wildcat'
-    LIGHT_DOG = 'Pitbull'
-    LIGHT_WOLF = 'Silver Fang'
-    LIGHT_LEOPARD = 'Siberi Leopard'
-    LIGHT_TIGER = 'Bengal Tiger'
-    LIGHT_LION = 'Panthera Leo'
-    LIGHT_ELEPHANT = 'Loxodonta'
+    DARK_RAT = "Rat"
+    DARK_CAT = "Sphynx"
+    DARK_DOG = "Saluki"
+    DARK_WOLF = "Grey Wolf"
+    DARK_LEOPARD = "Black Panther"
+    DARK_TIGER = "White Tiger"
+    DARK_LION = "Smilodon"
+    DARK_ELEPHANT = "Mammoth"
+    LIGHT_RAT = "Mouse"
+    LIGHT_CAT = "Wildcat"
+    LIGHT_DOG = "Pitbull"
+    LIGHT_WOLF = "Silver Fang"
+    LIGHT_LEOPARD = "Siberi Leopard"
+    LIGHT_TIGER = "Bengal Tiger"
+    LIGHT_LION = "Panthera Leo"
+    LIGHT_ELEPHANT = "Loxodonta"
 
     @staticmethod
-    def rat(side):
-        '''
-        Get the name of the rat.
+    def rat(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_RAT, PieceName.LIGHT_RAT)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the rat.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_RAT or PieceName.LIGHT_RAT
-    
     @staticmethod
-    def cat(side):
-        '''
-        Get the name of the cat.
+    def cat(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_CAT, PieceName.LIGHT_CAT)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the cat.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_CAT or PieceName.LIGHT_CAT
-    
     @staticmethod
-    def dog(side):
-        '''
-        Get the name of the dog.
+    def dog(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_DOG, PieceName.LIGHT_DOG)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the dog.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_DOG or PieceName.LIGHT_DOG
-    
     @staticmethod
-    def wolf(side):
-        '''
-        Get the name of the wolf.
+    def wolf(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_WOLF, PieceName.LIGHT_WOLF)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the wolf.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_WOLF or PieceName.LIGHT_WOLF
-    
     @staticmethod
-    def leopard(side):
-        '''
-        Get the name of the leopard.
+    def leopard(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_LEOPARD, PieceName.LIGHT_LEOPARD)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the leopard.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_LEOPARD or PieceName.LIGHT_LEOPARD
-    
     @staticmethod
-    def tiger(side):
-        '''
-        Get the name of the tiger.
+    def tiger(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_TIGER, PieceName.LIGHT_TIGER)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the tiger.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_TIGER or PieceName.LIGHT_TIGER
-    
     @staticmethod
-    def lion(side):
-        '''
-        Get the name of the lion.
+    def lion(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_LION, PieceName.LIGHT_LION)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the lion.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_LION or PieceName.LIGHT_LION
-    
     @staticmethod
-    def elephant(side):
-        '''
-        Get the name of the elephant.
+    def elephant(side: str) -> str:
+        return _select_by_side(side, PieceName.DARK_ELEPHANT, PieceName.LIGHT_ELEPHANT)
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The name of the elephant.
-        '''
-        return side == PlayerSide.DARK and PieceName.DARK_ELEPHANT or PieceName.LIGHT_ELEPHANT
 
 class PieceDetail:
-    '''
-    The detail of the piece.
-    
-    Attributes:
-    - RAT (str): The detail of the rat.
-    - CAT (str): The detail of the cat.
-    - DOG (str): The detail of the dog.
-    - WOLF (str): The detail of the wolf.
-    - LEOPARD (str): The detail of the leopard.
-    - TIGER (str): The detail of the tiger.
-    - LION (str): The detail of the lion.
-    - ELEPHANT (str): The detail of the elephant.
-    '''
-    RAT = """Effect:
-- The Rat can enter the River region.
-- The Rat has the lowest rank but can defeat an Elephant at the highest rank. This is explained by the Rat running into the ear and nibbling on the Elephant's brain."""
-    CAT = """Description: The Cat can defeat the Rat."""
-    DOG = """Description: The Dog can defeat the Cat and Rat.
-Effect: The Dog can enter the River region."""
-    WOLF = """Description: The Wolf can defeat the Dog, Cat and Rat."""
-    LEOPARD = """Description: The Leopard can defeat the Wolf, Dog, Cat and Rat."""
-    TIGER = """Description: The Tiger can defeat the Leopard, Wolf, Dog, Cat and Rat."""
-    LION = """Description: The Lion can defeat the Tiger, Leopard, Wolf, Dog, Cat and Rat."""
-    ELEPHANT = """Description: The Elephant can defeat the Lion, Tiger, Leopard, Wolf, Dog and Cat."""
+    """Mô tả tiếng Việt được hiển thị trên thẻ thông tin quân."""
+
+    RAT = (
+        "Hiệu ứng:\n- Chuột có thể đi vào sông.\n- Chuột có cấp thấp nhất "
+        "nhưng có thể hạ Voi khi tấn công từ đất liền."
+    )
+    CAT = "Mô tả: Mèo có thể hạ Chuột."
+    DOG = "Mô tả: Chó có thể hạ Mèo và Chuột.\nHiệu ứng: Chó có thể đi vào sông."
+    WOLF = "Mô tả: Sói có thể hạ Chó, Mèo và Chuột."
+    LEOPARD = "Mô tả: Báo có thể hạ Sói, Chó, Mèo và Chuột."
+    TIGER = "Mô tả: Hổ có thể hạ Báo, Sói, Chó, Mèo và Chuột."
+    LION = "Mô tả: Sư tử có thể hạ Hổ, Báo, Sói, Chó, Mèo và Chuột."
+    ELEPHANT = "Mô tả: Voi có thể hạ Sư tử, Hổ, Báo, Sói, Chó và Mèo."
+
 
 class PieceAtk:
-    '''
-    The attack of the piece.
-    
-    Attributes:
-    - RAT (int): The attack of the rat.
-    - CAT (int): The attack of the cat.
-    - DOG (int): The attack of the dog.
-    - WOLF (int): The attack of the wolf.
-    - LEOPARD (int): The attack of the leopard.
-    - TIGER (int): The attack of the tiger.
-    - LION (int): The attack of the lion.
-    - ELEPHANT (int): The attack of the elephant.
-    '''
+    """Cấp sức mạnh cơ bản theo luật Đấu Thú Kỳ."""
+
     RAT = 1
     CAT = 2
     DOG = 3
@@ -920,308 +402,38 @@ class PieceAtk:
     LION = 7
     ELEPHANT = 8
 
+
 class PieceAvatar:
-    '''
-    The avatar of the piece.
-    
-    Attributes:
-    - DARK_RAT (str): The avatar of the dark rat.
-    - DARK_CAT (str): The avatar of the dark cat.
-    - DARK_DOG (str): The avatar of the dark dog.
-    - DARK_WOLF (str): The avatar of the dark wolf.
-    - DARK_LEOPARD (str): The avatar of the dark leopard.
-    - DARK_TIGER (str): The avatar of the dark tiger.
-    - DARK_LION (str): The avatar of the dark lion.
-    - DARK_ELEPHANT (str): The avatar of the dark elephant.
-    - LIGHT_RAT (str): The avatar of the light rat.
-    - LIGHT_CAT (str): The avatar of the light cat.
-    - LIGHT_DOG (str): The avatar of the light dog.
-    - LIGHT_WOLF (str): The avatar of the light wolf.
-    - LIGHT_LEOPARD (str): The avatar of the light leopard.
-    - LIGHT_TIGER (str): The avatar of the light tiger.
-    - LIGHT_LION (str): The avatar of the light lion.
-    - LIGHT_ELEPHANT (str): The avatar of the light elephant.
-
-    Methods:
-    - rat(side): Get the avatar of the rat.
-    - cat(side): Get the avatar of the cat.
-    - dog(side): Get the avatar of the dog.
-    - wolf(side): Get the avatar of the wolf.
-    - leopard(side): Get the avatar of the leopard.
-    - tiger(side): Get the avatar of the tiger.
-    - lion(side): Get the avatar of the lion.
-    - elephant(side): Get the avatar of the elephant.
-    '''
-    DARK_RAT = 'assets/pieces/dark/rat.png'
-    DARK_CAT = 'assets/pieces/dark/cat.png'
-    DARK_DOG = 'assets/pieces/dark/dog.png'
-    DARK_WOLF = 'assets/pieces/dark/wolf.png'
-    DARK_LEOPARD = 'assets/pieces/dark/leopard.png'
-    DARK_TIGER = 'assets/pieces/dark/tiger.png'
-    DARK_LION = 'assets/pieces/dark/lion.png'
-    DARK_ELEPHANT = 'assets/pieces/dark/elephant.png'
-    LIGHT_RAT = 'assets/pieces/light/rat.png'
-    LIGHT_CAT = 'assets/pieces/light/cat.png'
-    LIGHT_DOG = 'assets/pieces/light/dog.png'
-    LIGHT_WOLF = 'assets/pieces/light/wolf.png'
-    LIGHT_LEOPARD = 'assets/pieces/light/leopard.png'
-    LIGHT_TIGER = 'assets/pieces/light/tiger.png'
-    LIGHT_LION = 'assets/pieces/light/lion.png'
-    LIGHT_ELEPHANT = 'assets/pieces/light/elephant.png'
+    """Ảnh quân cờ kích thước một ô."""
 
     @staticmethod
-    def rat(side):
-        '''
-        Get the avatar of the rat.
+    def _path(side: str, piece: str) -> str:
+        color = "dark" if PlayerSide.is_dark(side) else "light"
+        return _asset_path("pieces", color, f"{piece}.png")
 
-        Args:
-            side (str): The side.
+    rat = staticmethod(lambda side: PieceAvatar._path(side, "rat"))
+    cat = staticmethod(lambda side: PieceAvatar._path(side, "cat"))
+    dog = staticmethod(lambda side: PieceAvatar._path(side, "dog"))
+    wolf = staticmethod(lambda side: PieceAvatar._path(side, "wolf"))
+    leopard = staticmethod(lambda side: PieceAvatar._path(side, "leopard"))
+    tiger = staticmethod(lambda side: PieceAvatar._path(side, "tiger"))
+    lion = staticmethod(lambda side: PieceAvatar._path(side, "lion"))
+    elephant = staticmethod(lambda side: PieceAvatar._path(side, "elephant"))
 
-        Returns:
-            str: The avatar of the rat.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_RAT or PieceAvatar.LIGHT_RAT
-    
-    @staticmethod
-    def cat(side):
-        '''
-        Get the avatar of the cat.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the cat.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_CAT or PieceAvatar.LIGHT_CAT
-    
-    @staticmethod
-    def dog(side):
-        '''
-        Get the avatar of the dog.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the dog.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_DOG or PieceAvatar.LIGHT_DOG
-    
-    @staticmethod
-    def wolf(side):
-        '''
-        Get the avatar of the wolf.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the wolf.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_WOLF or PieceAvatar.LIGHT_WOLF
-    
-    @staticmethod
-    def leopard(side):
-        '''
-        Get the avatar of the leopard.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the leopard.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_LEOPARD or PieceAvatar.LIGHT_LEOPARD
-    
-    @staticmethod
-    def tiger(side):
-        '''
-        Get the avatar of the tiger.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the tiger.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_TIGER or PieceAvatar.LIGHT_TIGER
-    
-    @staticmethod
-    def lion(side):
-        '''
-        Get the avatar of the lion.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the lion.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_LION or PieceAvatar.LIGHT_LION
-    
-    @staticmethod
-    def elephant(side):
-        '''
-        Get the avatar of the elephant.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The avatar of the elephant.
-        '''
-        return side == PlayerSide.DARK and PieceAvatar.DARK_ELEPHANT or PieceAvatar.LIGHT_ELEPHANT
 
 class PieceArtWork:
-    '''
-    The artwork of the piece.
-    
-    Attributes:
-    - DARK_RAT (str): The artwork of the dark rat.
-    - DARK_CAT (str): The artwork of the dark cat.
-    - DARK_DOG (str): The artwork of the dark dog.
-    - DARK_WOLF (str): The artwork of the dark wolf.
-    - DARK_LEOPARD (str): The artwork of the dark leopard.
-    - DARK_TIGER (str): The artwork of the dark tiger.
-    - DARK_LION (str): The artwork of the dark lion.
-    - DARK_ELEPHANT (str): The artwork of the dark elephant.
-    - LIGHT_RAT (str): The artwork of the light rat.
-    - LIGHT_CAT (str): The artwork of the light cat.
-    - LIGHT_DOG (str): The artwork of the light dog.
-    - LIGHT_WOLF (str): The artwork of the light wolf.
-    - LIGHT_LEOPARD (str): The artwork of the light leopard.
-    - LIGHT_TIGER (str): The artwork of the light tiger.
-    - LIGHT_LION (str): The artwork of the light lion.
-    - LIGHT_ELEPHANT (str): The artwork of the light elephant.
-
-    Methods:
-    - rat(side): Get the artwork of the rat.
-    - cat(side): Get the artwork of the cat.
-    - dog(side): Get the artwork of the dog.
-    - wolf(side): Get the artwork of the wolf.
-    - leopard(side): Get the artwork of the leopard.
-    - tiger(side): Get the artwork of the tiger.
-    - lion(side): Get the artwork of the lion.
-    - elephant(side): Get the artwork of the elephant.
-    '''
-    DARK_RAT = 'assets/artworks/dark/rat.png'
-    DARK_CAT = 'assets/artworks/dark/cat.png'
-    DARK_DOG = 'assets/artworks/dark/dog.png'
-    DARK_WOLF = 'assets/artworks/dark/wolf.png'
-    DARK_LEOPARD = 'assets/artworks/dark/leopard.png'
-    DARK_TIGER = 'assets/artworks/dark/tiger.png'
-    DARK_LION = 'assets/artworks/dark/lion.png'
-    DARK_ELEPHANT = 'assets/artworks/dark/elephant.png'
-    LIGHT_RAT = 'assets/artworks/light/rat.png'
-    LIGHT_CAT = 'assets/artworks/light/cat.png'
-    LIGHT_DOG = 'assets/artworks/light/dog.png'
-    LIGHT_WOLF = 'assets/artworks/light/wolf.png'
-    LIGHT_LEOPARD = 'assets/artworks/light/leopard.png'
-    LIGHT_TIGER = 'assets/artworks/light/tiger.png'
-    LIGHT_LION = 'assets/artworks/light/lion.png'
-    LIGHT_ELEPHANT = 'assets/artworks/light/elephant.png'
+    """Ảnh minh họa lớn dùng trên bảng thông tin."""
 
     @staticmethod
-    def rat(side):
-        '''
-        Get the artwork of the rat.
+    def _path(side: str, piece: str) -> str:
+        color = "dark" if PlayerSide.is_dark(side) else "light"
+        return _asset_path("artworks", color, f"{piece}.png")
 
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the rat.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_RAT or PieceArtWork.LIGHT_RAT
-    
-    @staticmethod
-    def cat(side):
-        '''
-        Get the artwork of the cat.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the cat.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_CAT or PieceArtWork.LIGHT_CAT
-    
-    @staticmethod
-    def dog(side):
-        '''
-        Get the artwork of the dog.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the dog.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_DOG or PieceArtWork.LIGHT_DOG
-    
-    @staticmethod
-    def wolf(side):
-        '''
-        Get the artwork of the wolf.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the wolf.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_WOLF or PieceArtWork.LIGHT_WOLF
-    
-    @staticmethod
-    def leopard(side):
-        '''
-        Get the artwork of the leopard.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the leopard.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_LEOPARD or PieceArtWork.LIGHT_LEOPARD
-    
-    @staticmethod
-    def tiger(side):
-        '''
-        Get the artwork of the tiger.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the tiger.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_TIGER or PieceArtWork.LIGHT_TIGER
-    
-    @staticmethod
-    def lion(side):
-        '''
-        Get the artwork of the lion.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the lion.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_LION or PieceArtWork.LIGHT_LION
-    
-    @staticmethod
-    def elephant(side):
-        '''
-        Get the artwork of the elephant.
-
-        Args:
-            side (str): The side.
-
-        Returns:
-            str: The artwork of the elephant.
-        '''
-        return side == PlayerSide.DARK and PieceArtWork.DARK_ELEPHANT or PieceArtWork.LIGHT_ELEPHANT
+    rat = staticmethod(lambda side: PieceArtWork._path(side, "rat"))
+    cat = staticmethod(lambda side: PieceArtWork._path(side, "cat"))
+    dog = staticmethod(lambda side: PieceArtWork._path(side, "dog"))
+    wolf = staticmethod(lambda side: PieceArtWork._path(side, "wolf"))
+    leopard = staticmethod(lambda side: PieceArtWork._path(side, "leopard"))
+    tiger = staticmethod(lambda side: PieceArtWork._path(side, "tiger"))
+    lion = staticmethod(lambda side: PieceArtWork._path(side, "lion"))
+    elephant = staticmethod(lambda side: PieceArtWork._path(side, "elephant"))

@@ -1,109 +1,96 @@
+"""Điểm vào ứng dụng Animal Chess.
+
+Vòng lặp luôn xử lý hàng đợi sự kiện, kể cả khi máy đang tự đấu, để cửa sổ
+không bị hệ điều hành đánh dấu “Not responding”. Module an toàn khi import vì
+chỉ chạy game bên trong guard ``__main__``.
+"""
+
 import asyncio
+
 import pygame
-from pygame import *
 
-# Initialize Pygame
-pygame.init()
+from scripts import common, rendering
+from scripts.common import Color, GameMode, GameState, PlayerSide, Size
+from scripts.manager import GameManager
 
-import scripts.common as common
-import scripts.rendering as rendering
-from scripts.common import *
-from scripts.manager import *
 
-# Constants
-LOOP = 5_000
+DEFAULT_GAME_MODE = GameMode.PvC
+AUTO_GAME_LIMIT = 5_000
 
-# Global variables
-_game_mode = GameMode.PvC
-_counter = LOOP
-_screen = display.set_mode(Size.TOTAL, pygame.SRCALPHA, 32)
 
-# Set the window title
-display.set_caption(common.TIT)
+def is_human_turn(game_manager: GameManager) -> bool:
+    """Xác định lượt hiện tại có nhận thao tác bàn cờ từ người chơi hay không."""
 
-def handle_events(game_manager, mouse_position):
-    '''
-    Handle events such as mouse clicks and window close.
+    return GameMode.is_pvp(game_manager.game_mode) or (
+        GameMode.is_pvc(game_manager.game_mode)
+        and PlayerSide.is_light(game_manager.current_side)
+    )
 
-    Args:
-        game_manager (GameManager): The game manager object.
-        mouse_position (tuple): The current mouse position.
 
-    Returns:
-        bool: True if the game should continue running, False otherwise.
-    '''
-    # Iterate over all the events
-    for e in event.get():
-        if e.type == pygame.QUIT:
+def handle_events(game_manager: GameManager) -> bool:
+    """Xử lý đóng cửa sổ, nút ván mới và click chọn/di chuyển quân."""
+
+    for current_event in pygame.event.get():
+        if current_event.type == pygame.QUIT:
             return False
-        elif e.type == pygame.MOUSEBUTTONDOWN:
-            if GameState.is_running(game_manager.game_state):
-                if not game_manager.selected_piece or not game_manager.handle_piece_move(mouse_position):
-                    game_manager.handle_piece_selection(mouse_position)
-            else:
-                if rendering.START_BTN_RECT.collidepoint(mouse_position):
-                    # Reset game
-                    game_manager.reset_game()
+        if current_event.type != pygame.MOUSEBUTTONDOWN:
+            continue
 
-                    # Set the game state to running
-                    if GameMode.is_cvc(game_manager.game_mode):
-                        global _counter
-                        _counter = LOOP
-
-    # Return True if the game should continue running
+        mouse_position = current_event.pos
+        if GameState.is_running(game_manager.game_state):
+            if not is_human_turn(game_manager):
+                continue
+            if (
+                game_manager.selected_piece is None
+                or not game_manager.handle_piece_move(mouse_position)
+            ):
+                game_manager.handle_piece_selection(mouse_position)
+        elif rendering.START_BTN_RECT.collidepoint(mouse_position):
+            game_manager.reset_game()
     return True
 
-async def main():
-    '''
-    The main function of the game.
-    '''
-    # Declare global variables
-    global _counter
 
-    # Initialize the game clock and the game manager
+async def run_game(
+    game_mode: int = DEFAULT_GAME_MODE,
+    auto_game_limit: int = AUTO_GAME_LIMIT,
+) -> None:
+    """Khởi tạo Pygame và chạy vòng lặp chính bất đồng bộ."""
+
+    pygame.init()
+    screen = pygame.display.set_mode(Size.TOTAL, pygame.SRCALPHA, 32)
+    pygame.display.set_caption(common.TIT)
+    rendering.initialize()
     clock = pygame.time.Clock()
-    game_manager = GameManager(_game_mode)
+    game_manager = GameManager(game_mode)
+    remaining_auto_games = auto_game_limit
     running = True
 
-    # Run the game loop
-    while running:
-        # Fill the screen with white color
-        _screen.fill(Color.WHITE)
+    try:
+        while running:
+            running = handle_events(game_manager)
+            screen.fill(Color.WHITE)
 
-        # Check if the game is running
-        if GameState.is_running(game_manager.game_state):
-            if GameMode.is_cvc(game_manager.game_mode):
-                game_manager.autoplay()
-            else:
-                # Get the mouse position
-                mouse_position = mouse.get_pos()
-                game_manager.handle_piece_focus(mouse_position)
-
-                # Check if it is the computer's turn
-                if GameMode.is_pvc(game_manager.game_mode) and PlayerSide.is_dark(game_manager.current_side):
+            if GameState.is_running(game_manager.game_state):
+                if GameMode.is_cvc(game_manager.game_mode) or (
+                    GameMode.is_pvc(game_manager.game_mode)
+                    and PlayerSide.is_dark(game_manager.current_side)
+                ):
                     game_manager.autoplay()
                 else:
-                    running = handle_events(game_manager, mouse_position)
-
-                # Draw the game
-                rendering.draw_game(_screen, game_manager)
-        else:
-            if GameMode.is_cvc(game_manager.game_mode) and _counter > 0:
+                    game_manager.handle_piece_focus(pygame.mouse.get_pos())
+                rendering.draw_game(screen, game_manager)
+            elif GameMode.is_cvc(game_manager.game_mode) and remaining_auto_games > 0:
                 game_manager.reset_game()
-                _counter -= 1
+                remaining_auto_games -= 1
             else:
-                running = handle_events(game_manager, mouse.get_pos())
-                rendering.draw_screen(_screen, game_manager)
+                rendering.draw_screen(screen, game_manager)
 
-        # Update the display
-        display.flip()
-        clock.tick(60)
+            pygame.display.flip()
+            clock.tick(common.FPS)
+            await asyncio.sleep(0)
+    finally:
+        pygame.quit()
 
-        # Wait for a while
-        await asyncio.sleep(0)
 
-    # Quit Pygame
-    pygame.quit()
-
-# Run the main function
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(run_game())
