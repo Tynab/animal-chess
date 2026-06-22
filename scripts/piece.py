@@ -1,191 +1,146 @@
-import scripts.common as common
-from pygame import *
-from scripts.common import *
+"""Lớp quân cờ cơ sở và luật di chuyển dùng chung.
+
+Mỗi quân cụ thể chỉ cần cung cấp metadata và ghi đè phần luật đặc biệt. Module
+không phụ thuộc các lớp quân con nên tránh được vòng import với ``Cell``.
+"""
+
+import pygame
+
+from scripts import common
+from scripts.common import CellLabel, PlayerSide, Size
+
 
 class Piece:
-    '''
-    The piece.
-    
-    Attributes:
-    - name (str): The name.
-    - image (Surface): The image.
-    - artwork (Surface): The artwork.
-    - detail (str): The detail.
-    - position (tuple): The position.
-    - atk (int): The attack power.
-    - side (PlayerSide): The side.
-    
-    Methods:
-    - copy(self): Copy the piece.
-    - left(self, step, board): Get the cell to the left.
-    - right(self, step, board): Get the cell to the right.
-    - up(self, step, board): Get the cell above.
-    - down(self, step, board): Get the cell below.
-    - can_defeat(self, piece): Check if the piece can defeat another piece.
-    - is_valid_cell(self, cell): Check if the cell is a valid move.
-    - available_cells(self, board): Get the available cells.
-    - weaker_pieces_positions(self, board): Get the positions of weaker pieces.
-    - is_dark: Check if the piece belongs to the dark side.
-    - is_light: Check if the piece belongs to the light side.
-    '''
+    """Quân cờ cơ sở, quản lý vị trí, sức mạnh và bốn hướng di chuyển."""
 
-    def __init__(self, name, detail, position, atk, side, image_path=None, artwork_path=None):
-        '''
-        Initializes a new instance of the Piece class.
-        
-        Args:
-            name (str): The name of the piece.
-            detail (str): The details of the piece.
-            position (tuple): The position of the piece on the board.
-            atk (int): The attack power of the piece.
-            side (PlayerSide): The side the piece belongs to.
-            image_path (str): The path to the image of the piece.
-            artwork_path (str): The path to the artwork of the piece.
-            
-        Returns:
-            Piece: The new instance of the Piece class.
-        '''
+    def __init__(
+        self,
+        name: str,
+        detail: str,
+        position: tuple[int, int],
+        atk: int,
+        side: str,
+        image_path: str | None = None,
+        artwork_path: str | None = None,
+    ) -> None:
         self.name = name
-        self.image = image_path and transform.scale(image.load(image_path), Size.CELL) or None
-        self.artwork = artwork_path and transform.scale(image.load(artwork_path), Size.ARTWORK) or None
         self.detail = detail
         self.position = position
+        self.base_atk = atk
         self.atk = atk
         self.side = side
+        self.image = self._load_image(image_path, Size.CELL)
+        self.artwork = self._load_image(artwork_path, Size.ARTWORK)
+
+    @staticmethod
+    def _load_image(path: str | None, size: tuple[int, int]):
+        """Nạp và scale ảnh; bản sao dùng cho AI bỏ qua ảnh để tiết kiệm RAM."""
+
+        return pygame.transform.scale(pygame.image.load(path), size) if path else None
 
     def copy(self):
-        '''
-        Creates a copy of the piece.
-        
-        Returns:
-            Piece: The copy of the piece.
-        '''
-        return Piece(self.name, self.detail, self.position, self.atk, self.side)
+        """Tạo bản sao không kèm tài nguyên đồ họa."""
 
-    def left(self, step, board):
-        '''
-        Returns the cell to the left of the piece.
-        
-        Args:
-            step (int): The step size.
-            board (Board): The board.
-            
-        Returns:
-            Cell: The cell to the left of the piece.
-        '''
-        return None if self.position[0] - step < 0 else board.get_cell((self.position[0] - step, self.position[1]))
-    
-    def right(self, step, board):
-        '''
-        Returns the cell to the right of the piece.
-        
-        Args:
-            step (int): The step size.
-            board (Board): The board.
-            
-        Returns:
-            Cell: The cell to the right of the piece.
-        '''
-        return None if self.position[0] + step >= common.W else board.get_cell((self.position[0] + step, self.position[1]))
-    
-    def up(self, step, board):
-        '''
-        Returns the cell above the piece.
-        
-        Args:
-            step (int): The step size.
-            board (Board): The board.
-        
-        Returns:
-            Cell: The cell above the piece.
-        '''
-        return None if self.position[1] - step < 0 else board.get_cell((self.position[0], self.position[1] - step))
-    
-    def down(self, step, board):
-        '''
-        Returns the cell below the piece.
-        
-        Args:
-            step (int): The step size.
-            board (Board): The board.
-            
-        Returns:
-            Cell: The cell below the piece.
-        '''
-        return None if self.position[1] + step >= common.H else board.get_cell((self.position[0], self.position[1] + step))
-    
-    def can_defeat(self, piece):
-        '''
-        Checks if the piece can defeat another piece.
-        
-        Args:
-            piece (Piece): The piece.
-        
-        Returns:
-            bool: True if the piece can defeat another piece, False otherwise.
-        '''
-        return not piece or self.atk >= piece.atk
+        return Piece(self.name, self.detail, self.position, self.base_atk, self.side)
 
-    def is_valid_cell(self, cell):
-        '''
-        Checks if a cell is a valid move for the piece.
-        
-        Args:
-            cell (Cell): The cell.
-        
-        Returns:
-            bool: True if the cell is a valid move for the piece, False otherwise.
-        '''
-        return cell.is_in_board and not cell.is_river and not cell.is_occupied_own(self.side) and (not cell.piece or self.can_defeat(cell.piece))
+    def left(self, step: int, board):
+        x, y = self.position
+        return None if x - step < 0 else board.get_cell((x - step, y))
 
-    def available_cells(self, board):
-        '''
-        Returns a list of available cells for the piece.
-        
-        Args:
-            board (Board): The board.
-        
-        Returns:
-            list: A list of available cells for the piece.
-        '''
-        # Get the available cells
-        result = [cell for direction in [self.left, self.right, self.up, self.down] if (cell := direction(1, board)) and self.is_valid_cell(cell)]
+    def right(self, step: int, board):
+        x, y = self.position
+        return None if x + step >= common.W else board.get_cell((x + step, y))
 
-        # Check if the piece is a rat
-        if board.forbidden_move and board.forbidden_move[0] == self.position and board.forbidden_cell in result:
-            result.remove(board.forbidden_cell)
+    def up(self, step: int, board):
+        x, y = self.position
+        return None if y - step < 0 else board.get_cell((x, y - step))
 
-        # Return the available cells
-        return result
+    def down(self, step: int, board):
+        x, y = self.position
+        return None if y + step >= common.H else board.get_cell((x, y + step))
 
-    def weaker_pieces_positions(self, board):
-        '''
-        Returns a list of positions of weaker pieces.
-        
-        Args:
-            board (Board): The board.
-        
-        Returns:
-            list: A list of positions of weaker pieces.
-        '''
-        return [PlayerSide.opponent_den_position(self.side)] + [piece.position for piece in board.pieces_of[PlayerSide.opponent_of(self.side)] if piece.atk < self.atk]
-    
+    def can_defeat(self, piece) -> bool:
+        """Quân thường chỉ bắt được quân có cấp không lớn hơn mình."""
+
+        return piece is None or self.atk >= piece.atk
+
+    def is_valid_cell(self, cell) -> bool:
+        """Kiểm tra luật chung: không vào sông/hang nhà và không đè quân cùng phe."""
+
+        return (
+            cell.is_in_board
+            and not cell.is_river
+            and not CellLabel.is_player_den(cell.label, self.side)
+            and not cell.is_occupied_own(self.side)
+            and (cell.piece is None or self.can_defeat(cell.piece))
+        )
+
+    def available_cells(self, board) -> list:
+        """Liệt kê các ô hợp lệ kề theo bốn hướng."""
+
+        cells = []
+        for direction in (self.left, self.right, self.up, self.down):
+            cell = direction(1, board)
+            if cell and self.is_valid_cell(cell):
+                cells.append(cell)
+
+        # Luật chống lặp có thể cấm đúng một ô đích của quân hiện tại.
+        if (
+            board.forbidden_move
+            and board.forbidden_move[0] == self.position
+            and board.forbidden_cell in cells
+        ):
+            cells.remove(board.forbidden_cell)
+        return cells
+
+    def weaker_pieces_positions(self, board) -> list[tuple[int, int]]:
+        """Trả về các mục tiêu mà quân có thể hướng đến khi tìm đường."""
+
+        opponents = board.pieces_of[PlayerSide.opponent_of(self.side)]
+        return [
+            PlayerSide.opponent_den_position(self.side),
+            *[piece.position for piece in opponents if piece.atk < self.atk],
+        ]
+
     @property
-    def is_dark(self):
-        '''
-        Checks if the piece belongs to the dark side.
-        
-        Returns:
-            bool: True if the piece belongs to the dark side, False otherwise.
-        '''
+    def is_dark(self) -> bool:
         return PlayerSide.is_dark(self.side)
 
     @property
-    def is_light(self):
-        '''
-        Checks if the piece belongs to the light side.
-        
-        Returns:
-            bool: True if the piece belongs to the light side, False otherwise.
-        '''
+    def is_light(self) -> bool:
         return PlayerSide.is_light(self.side)
+
+
+class RiverJumper(Piece):
+    """Luật dùng chung cho Hổ và Sư tử khi nhảy qua sông."""
+
+    def available_cells(self, board) -> list:
+        cells = []
+        for direction in (self.left, self.right, self.up, self.down):
+            destination = self._jump_destination(direction, board)
+            if destination and self.is_valid_cell(destination):
+                cells.append(destination)
+
+        if (
+            board.forbidden_move
+            and board.forbidden_move[0] == self.position
+            and board.forbidden_cell in cells
+        ):
+            cells.remove(board.forbidden_cell)
+        return cells
+
+    @staticmethod
+    def _jump_destination(direction, board):
+        """Trả về bờ đối diện; Chuột trong sông sẽ chặn cú nhảy."""
+
+        step = 1
+        cell = direction(step, board)
+        if not cell or not cell.is_river:
+            return cell
+
+        while cell and cell.is_river:
+            if cell.piece:
+                return None
+            step += 1
+            cell = direction(step, board)
+        return cell

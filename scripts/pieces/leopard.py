@@ -1,36 +1,29 @@
-from scripts.common import *
-from scripts.piece import *
+"""Quân Báo: quân cấp 5 dùng luật di chuyển cơ bản."""
+
+from scripts.common import (
+    CellPosition,
+    PieceArtWork,
+    PieceAtk,
+    PieceAvatar,
+    PieceDetail,
+    PieceName,
+)
+from scripts.piece import Piece
+
 
 class Leopard(Piece):
-    '''
-    Leopard class.
-    
-    Attributes:
-    - side (PlayerSide): The player side.
-    
-    Methods:
-    - __init__: Initialize the leopard.
-    - copy: Creates a copy of the leopard.
-    '''
+    """Khởi tạo và sao chép quân Báo."""
 
-    def __init__(self, side, is_copy=False):
-        '''
-        Initialize the leopard.
-        
-        Args:
-            side (PlayerSide): The player side.
-            is_copy (bool): True if the piece is a copy, False otherwise.
-        
-        Returns:
-            Leopard: A new Leopard instance.
-        '''
-        super().__init__(PieceName.leopard(side), PieceDetail.LEOPARD, CellPosition.leopard(side), PieceAtk.LEOPARD, side, None if is_copy else PieceAvatar.leopard(side), None if is_copy else PieceArtWork.leopard(side))
+    def __init__(self, side: str, is_copy: bool = False) -> None:
+        super().__init__(
+            PieceName.leopard(side),
+            PieceDetail.LEOPARD,
+            CellPosition.leopard(side),
+            PieceAtk.LEOPARD,
+            side,
+            None if is_copy else PieceAvatar.leopard(side),
+            None if is_copy else PieceArtWork.leopard(side),
+        )
 
     def copy(self):
-        '''
-        Creates a copy of the leopard.
-        
-        Returns:
-            Leopard: A new Leopard instance.
-        '''
-        return Leopard(self.side, True)
+        return Leopard(self.side, is_copy=True)

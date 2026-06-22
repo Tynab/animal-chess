@@ -1,49 +1,38 @@
-from scripts.common import *
-from scripts.piece import *
+"""Quân Chó: quân cấp 3 có thể di chuyển trong sông theo luật của dự án."""
+
+from scripts.common import (
+    CellLabel,
+    CellPosition,
+    PieceArtWork,
+    PieceAtk,
+    PieceAvatar,
+    PieceDetail,
+    PieceName,
+)
+from scripts.piece import Piece
+
 
 class Dog(Piece):
-    '''
-    Dog class.
-    
-    Attributes:
-    - side (PlayerSide): The player side.
-    
-    Methods:
-    - __init__: Initializes the dog.
-    - copy: Creates a copy of the dog.
-    - is_valid_cell: Checks if a cell is a valid move for the piece.
-    '''
+    """Mở rộng quân cơ sở bằng quyền đi vào ô sông."""
 
-    def __init__(self, side, is_copy=False):
-        '''
-        Initializes the dog.
-        
-        Args:
-            side (PlayerSide): The player side.
-            is_copy (bool): True if the piece is a copy, False otherwise.
-        
-        Returns:
-            Dog: A new Dog instance.
-        '''
-        super().__init__(PieceName.dog(side), PieceDetail.DOG, CellPosition.dog(side), PieceAtk.DOG, side, None if is_copy else PieceAvatar.dog(side), None if is_copy else PieceArtWork.dog(side))
+    def __init__(self, side: str, is_copy: bool = False) -> None:
+        super().__init__(
+            PieceName.dog(side),
+            PieceDetail.DOG,
+            CellPosition.dog(side),
+            PieceAtk.DOG,
+            side,
+            None if is_copy else PieceAvatar.dog(side),
+            None if is_copy else PieceArtWork.dog(side),
+        )
 
     def copy(self):
-        '''
-        Creates a copy of the dog.
-        
-        Returns:
-            Dog: A new Dog instance.
-        '''
-        return Dog(self.side, True)
+        return Dog(self.side, is_copy=True)
 
-    def is_valid_cell(self, cell):
-        '''
-        Checks if a cell is a valid move for the piece.
-        
-        Args:
-            cell (Cell): The cell to check.
-        
-        Returns:
-            bool: True if the cell is a valid move, False otherwise.
-        '''
-        return cell.is_in_board and not cell.is_occupied_own(self.side) and (not cell.piece or self.can_defeat(cell.piece))
+    def is_valid_cell(self, cell) -> bool:
+        return (
+            cell.is_in_board
+            and not CellLabel.is_player_den(cell.label, self.side)
+            and not cell.is_occupied_own(self.side)
+            and (cell.piece is None or self.can_defeat(cell.piece))
+        )
