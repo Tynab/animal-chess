@@ -5,6 +5,8 @@ Chạy headless hoàn toàn: dùng ``Board(is_copy=True)`` để dựng bàn log
 nạp ảnh, nên không cần display, asset hay Git LFS. Dùng làm lưới chống hồi quy
 cho đợt refactor: giá trị vàng được chốt từ code GỐC rồi kiểm lại sau mỗi bước.
 """
+# Import scripts.* buộc phải nằm sau khi chèn ROOT vào sys.path -> tắt E402 cho file này.
+# ruff: noqa: E402
 import json
 import sys
 from pathlib import Path
