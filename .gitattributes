@@ -1,6 +1,14 @@
-# Auto detect text files and perform LF normalization
+# Tự nhận diện file text và chuẩn hóa xuống dòng.
 * text=auto
+
+# File lớn/nhị phân lưu qua Git LFS (không diff/merge như text).
 *.csv filter=lfs diff=lfs merge=lfs -text
 *.h5 filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text
+
+# Notebook: cố định EOL là LF để tránh nhiễu diff giữa các máy.
+*.ipynb text eol=lf
+
+# Thư mục tài liệu: đánh dấu documentation cho thống kê ngôn ngữ của GitHub.
+docs/** linguist-documentation
