@@ -3,6 +3,15 @@
 Module gom cấu hình bàn cờ, trạng thái, tài nguyên và thông tin quân cờ vào một
 nơi duy nhất. Các lớp giữ API cũ để những module game không phải biết cách tài
 nguyên được tổ chức trên đĩa.
+
+``PIECES`` là NGUỒN SỰ THẬT DUY NHẤT cho dữ liệu tám quân cờ (vị trí xuất phát,
+tên hiển thị, điểm tấn công, mô tả luật riêng). Trước khi có bảng này, bốn
+nhóm lớp CellPosition/PieceName/PieceAvatar/PieceArtWork mỗi lớp lặp lại tám
+staticmethod gần như giống hệt nhau (chỉ khác tên quân), còn PieceAtk/
+PieceDetail liệt kê tám hằng số song song theo đúng thứ tự quân - sửa một giá
+trị phải nhớ sửa ở bốn, năm chỗ. Nay toàn bộ giá trị chỉ còn nằm ở PIECES, các
+lớp phía dưới chỉ tra bảng và giữ nguyên tên/API công khai cũ để không phá vỡ
+những module đã import chúng.
 """
 
 from pathlib import Path
@@ -213,6 +222,92 @@ class CellLabel:
         return label == _select_by_side(side, CellLabel.LIGHT_DEN, CellLabel.DARK_DEN)
 
 
+# ---------------------------------------------------------------------------
+# Bảng metadata tám quân cờ - NGUỒN SỰ THẬT DUY NHẤT.
+#
+# Khóa ngoài cùng là "slug" viết thường của quân (rat, cat, dog, wolf,
+# leopard, tiger, lion, elephant); slug này cũng chính là tên file ảnh dùng
+# trong assets/pieces/{dark|light}/{slug}.png và assets/artworks/{dark|
+# light}/{slug}.png, nên không cần cột slug riêng. Mỗi quân có:
+#   dark_pos / light_pos   : tọa độ (cột, hàng) xuất phát theo phe.
+#   dark_name / light_name : tên hiển thị trên thẻ thông tin theo phe.
+#   atk                    : cấp sức mạnh cơ bản (1 yếu nhất .. 8 mạnh nhất,
+#                            trùng đúng thứ tự bát thú của luật Đấu Thú Kỳ).
+#   detail                 : mô tả/luật riêng hiển thị trên thẻ thông tin.
+# Thứ tự khóa (rat -> elephant) được giữ đúng như thứ tự khai báo cũ trong
+# CellPosition/PieceName/PieceAtk để không đổi ý nghĩa "bát thú" quen thuộc.
+# ---------------------------------------------------------------------------
+PIECES = {
+    "rat": {
+        "dark_pos": (0, 2), "light_pos": (6, 6),
+        "dark_name": "Rat", "light_name": "Mouse",
+        "atk": 1,
+        "detail": (
+            "Hiệu ứng:\n- Chuột có thể đi vào sông.\n- Chuột có cấp thấp nhất "
+            "nhưng có thể hạ Voi khi tấn công từ đất liền."
+        ),
+    },
+    "cat": {
+        "dark_pos": (5, 1), "light_pos": (1, 7),
+        "dark_name": "Sphynx", "light_name": "Wildcat",
+        "atk": 2,
+        "detail": "Mô tả: Mèo có thể hạ Chuột.",
+    },
+    "dog": {
+        "dark_pos": (1, 1), "light_pos": (5, 7),
+        "dark_name": "Saluki", "light_name": "Pitbull",
+        "atk": 3,
+        "detail": (
+            "Mô tả: Chó có thể hạ Mèo và Chuột.\nHiệu ứng: Chó có thể đi vào sông."
+        ),
+    },
+    "wolf": {
+        "dark_pos": (4, 2), "light_pos": (2, 6),
+        "dark_name": "Grey Wolf", "light_name": "Silver Fang",
+        "atk": 4,
+        "detail": "Mô tả: Sói có thể hạ Chó, Mèo và Chuột.",
+    },
+    "leopard": {
+        "dark_pos": (2, 2), "light_pos": (4, 6),
+        "dark_name": "Black Panther", "light_name": "Siberi Leopard",
+        "atk": 5,
+        "detail": "Mô tả: Báo có thể hạ Sói, Chó, Mèo và Chuột.",
+    },
+    "tiger": {
+        "dark_pos": (6, 0), "light_pos": (0, 8),
+        "dark_name": "White Tiger", "light_name": "Bengal Tiger",
+        "atk": 6,
+        "detail": "Mô tả: Hổ có thể hạ Báo, Sói, Chó, Mèo và Chuột.",
+    },
+    "lion": {
+        "dark_pos": (0, 0), "light_pos": (6, 8),
+        "dark_name": "Smilodon", "light_name": "Panthera Leo",
+        "atk": 7,
+        "detail": "Mô tả: Sư tử có thể hạ Hổ, Báo, Sói, Chó, Mèo và Chuột.",
+    },
+    "elephant": {
+        "dark_pos": (6, 2), "light_pos": (0, 6),
+        "dark_name": "Mammoth", "light_name": "Loxodonta",
+        "atk": 8,
+        "detail": "Mô tả: Voi có thể hạ Sư tử, Hổ, Báo, Sói, Chó và Mèo.",
+    },
+}
+
+
+def _piece_position(key: str, side: str) -> tuple[int, int]:
+    """Tra tọa độ xuất phát của quân `key` (slug trong PIECES) theo phe."""
+
+    meta = PIECES[key]
+    return _select_by_side(side, meta["dark_pos"], meta["light_pos"])
+
+
+def _piece_name(key: str, side: str) -> str:
+    """Tra tên hiển thị của quân `key` (slug trong PIECES) theo phe."""
+
+    meta = PIECES[key]
+    return _select_by_side(side, meta["dark_name"], meta["light_name"])
+
+
 class CellPosition:
     """Tọa độ địa hình và vị trí xuất phát của các quân."""
 
@@ -236,22 +331,6 @@ class CellPosition:
     LIGHT_TRAP_3 = (4, 8)
     DARK_DEN = (3, 0)
     LIGHT_DEN = (3, 8)
-    DARK_RAT = (0, 2)
-    DARK_CAT = (5, 1)
-    DARK_DOG = (1, 1)
-    DARK_WOLF = (4, 2)
-    DARK_LEOPARD = (2, 2)
-    DARK_TIGER = (6, 0)
-    DARK_LION = (0, 0)
-    DARK_ELEPHANT = (6, 2)
-    LIGHT_RAT = (6, 6)
-    LIGHT_CAT = (1, 7)
-    LIGHT_DOG = (5, 7)
-    LIGHT_WOLF = (2, 6)
-    LIGHT_LEOPARD = (4, 6)
-    LIGHT_TIGER = (0, 8)
-    LIGHT_LION = (6, 8)
-    LIGHT_ELEPHANT = (0, 6)
 
     RIVERS = (
         RIVER_1_1,
@@ -270,41 +349,57 @@ class CellPosition:
     DARK_TRAPS = (DARK_TRAP_1, DARK_TRAP_2, DARK_TRAP_3)
     LIGHT_TRAPS = (LIGHT_TRAP_1, LIGHT_TRAP_2, LIGHT_TRAP_3)
 
+    # Tám staticmethod dưới đây thay cho tám hằng số DARK_*/LIGHT_* trước kia
+    # (DARK_RAT, LIGHT_RAT, ..., DARK_ELEPHANT, LIGHT_ELEPHANT): tọa độ xuất
+    # phát giờ tra thẳng từ bảng PIECES qua _piece_position, chỉ còn một nơi
+    # lưu tọa độ cho mỗi quân thay vì lặp lại ở hằng số lẫn ở đây.
     @staticmethod
     def rat(side: str) -> tuple[int, int]:
-        return _select_by_side(side, CellPosition.DARK_RAT, CellPosition.LIGHT_RAT)
+        """Vị trí xuất phát của Chuột theo phe."""
+
+        return _piece_position("rat", side)
 
     @staticmethod
     def cat(side: str) -> tuple[int, int]:
-        return _select_by_side(side, CellPosition.DARK_CAT, CellPosition.LIGHT_CAT)
+        """Vị trí xuất phát của Mèo theo phe."""
+
+        return _piece_position("cat", side)
 
     @staticmethod
     def dog(side: str) -> tuple[int, int]:
-        return _select_by_side(side, CellPosition.DARK_DOG, CellPosition.LIGHT_DOG)
+        """Vị trí xuất phát của Chó theo phe."""
+
+        return _piece_position("dog", side)
 
     @staticmethod
     def wolf(side: str) -> tuple[int, int]:
-        return _select_by_side(side, CellPosition.DARK_WOLF, CellPosition.LIGHT_WOLF)
+        """Vị trí xuất phát của Sói theo phe."""
+
+        return _piece_position("wolf", side)
 
     @staticmethod
     def leopard(side: str) -> tuple[int, int]:
-        return _select_by_side(
-            side, CellPosition.DARK_LEOPARD, CellPosition.LIGHT_LEOPARD
-        )
+        """Vị trí xuất phát của Báo theo phe."""
+
+        return _piece_position("leopard", side)
 
     @staticmethod
     def tiger(side: str) -> tuple[int, int]:
-        return _select_by_side(side, CellPosition.DARK_TIGER, CellPosition.LIGHT_TIGER)
+        """Vị trí xuất phát của Hổ theo phe."""
+
+        return _piece_position("tiger", side)
 
     @staticmethod
     def lion(side: str) -> tuple[int, int]:
-        return _select_by_side(side, CellPosition.DARK_LION, CellPosition.LIGHT_LION)
+        """Vị trí xuất phát của Sư tử theo phe."""
+
+        return _piece_position("lion", side)
 
     @staticmethod
     def elephant(side: str) -> tuple[int, int]:
-        return _select_by_side(
-            side, CellPosition.DARK_ELEPHANT, CellPosition.LIGHT_ELEPHANT
-        )
+        """Vị trí xuất phát của Voi theo phe."""
+
+        return _piece_position("elephant", side)
 
 
 class CellImage:
@@ -322,118 +417,212 @@ class CellImage:
 
 
 class PieceName:
-    """Tên hiển thị riêng của từng quân ở hai phe."""
-
-    DARK_RAT = "Rat"
-    DARK_CAT = "Sphynx"
-    DARK_DOG = "Saluki"
-    DARK_WOLF = "Grey Wolf"
-    DARK_LEOPARD = "Black Panther"
-    DARK_TIGER = "White Tiger"
-    DARK_LION = "Smilodon"
-    DARK_ELEPHANT = "Mammoth"
-    LIGHT_RAT = "Mouse"
-    LIGHT_CAT = "Wildcat"
-    LIGHT_DOG = "Pitbull"
-    LIGHT_WOLF = "Silver Fang"
-    LIGHT_LEOPARD = "Siberi Leopard"
-    LIGHT_TIGER = "Bengal Tiger"
-    LIGHT_LION = "Panthera Leo"
-    LIGHT_ELEPHANT = "Loxodonta"
+    """Tên hiển thị riêng của từng quân ở hai phe, tra theo bảng PIECES."""
 
     @staticmethod
     def rat(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_RAT, PieceName.LIGHT_RAT)
+        """Tên hiển thị của Chuột theo phe."""
+
+        return _piece_name("rat", side)
 
     @staticmethod
     def cat(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_CAT, PieceName.LIGHT_CAT)
+        """Tên hiển thị của Mèo theo phe."""
+
+        return _piece_name("cat", side)
 
     @staticmethod
     def dog(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_DOG, PieceName.LIGHT_DOG)
+        """Tên hiển thị của Chó theo phe."""
+
+        return _piece_name("dog", side)
 
     @staticmethod
     def wolf(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_WOLF, PieceName.LIGHT_WOLF)
+        """Tên hiển thị của Sói theo phe."""
+
+        return _piece_name("wolf", side)
 
     @staticmethod
     def leopard(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_LEOPARD, PieceName.LIGHT_LEOPARD)
+        """Tên hiển thị của Báo theo phe."""
+
+        return _piece_name("leopard", side)
 
     @staticmethod
     def tiger(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_TIGER, PieceName.LIGHT_TIGER)
+        """Tên hiển thị của Hổ theo phe."""
+
+        return _piece_name("tiger", side)
 
     @staticmethod
     def lion(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_LION, PieceName.LIGHT_LION)
+        """Tên hiển thị của Sư tử theo phe."""
+
+        return _piece_name("lion", side)
 
     @staticmethod
     def elephant(side: str) -> str:
-        return _select_by_side(side, PieceName.DARK_ELEPHANT, PieceName.LIGHT_ELEPHANT)
+        """Tên hiển thị của Voi theo phe."""
+
+        return _piece_name("elephant", side)
 
 
 class PieceDetail:
-    """Mô tả tiếng Việt được hiển thị trên thẻ thông tin quân."""
+    """Mô tả tiếng Việt hiển thị trên thẻ thông tin quân.
 
-    RAT = (
-        "Hiệu ứng:\n- Chuột có thể đi vào sông.\n- Chuột có cấp thấp nhất "
-        "nhưng có thể hạ Voi khi tấn công từ đất liền."
-    )
-    CAT = "Mô tả: Mèo có thể hạ Chuột."
-    DOG = "Mô tả: Chó có thể hạ Mèo và Chuột.\nHiệu ứng: Chó có thể đi vào sông."
-    WOLF = "Mô tả: Sói có thể hạ Chó, Mèo và Chuột."
-    LEOPARD = "Mô tả: Báo có thể hạ Sói, Chó, Mèo và Chuột."
-    TIGER = "Mô tả: Hổ có thể hạ Báo, Sói, Chó, Mèo và Chuột."
-    LION = "Mô tả: Sư tử có thể hạ Hổ, Báo, Sói, Chó, Mèo và Chuột."
-    ELEPHANT = "Mô tả: Voi có thể hạ Sư tử, Hổ, Báo, Sói, Chó và Mèo."
+    Không phân biệt phe (khác PieceName/CellPosition) nên chỉ cần đọc thẳng
+    trường "detail" của mỗi quân trong PIECES tại thời điểm định nghĩa lớp.
+    """
+
+    RAT = PIECES["rat"]["detail"]
+    CAT = PIECES["cat"]["detail"]
+    DOG = PIECES["dog"]["detail"]
+    WOLF = PIECES["wolf"]["detail"]
+    LEOPARD = PIECES["leopard"]["detail"]
+    TIGER = PIECES["tiger"]["detail"]
+    LION = PIECES["lion"]["detail"]
+    ELEPHANT = PIECES["elephant"]["detail"]
 
 
 class PieceAtk:
-    """Cấp sức mạnh cơ bản theo luật Đấu Thú Kỳ."""
+    """Cấp sức mạnh cơ bản theo luật Đấu Thú Kỳ.
 
-    RAT = 1
-    CAT = 2
-    DOG = 3
-    WOLF = 4
-    LEOPARD = 5
-    TIGER = 6
-    LION = 7
-    ELEPHANT = 8
+    Không phân biệt phe nên chỉ cần đọc thẳng trường "atk" của mỗi quân
+    trong PIECES tại thời điểm định nghĩa lớp (1 yếu nhất .. 8 mạnh nhất).
+    """
+
+    RAT = PIECES["rat"]["atk"]
+    CAT = PIECES["cat"]["atk"]
+    DOG = PIECES["dog"]["atk"]
+    WOLF = PIECES["wolf"]["atk"]
+    LEOPARD = PIECES["leopard"]["atk"]
+    TIGER = PIECES["tiger"]["atk"]
+    LION = PIECES["lion"]["atk"]
+    ELEPHANT = PIECES["elephant"]["atk"]
 
 
 class PieceAvatar:
-    """Ảnh quân cờ kích thước một ô."""
+    """Ảnh quân cờ kích thước một ô.
+
+    Đường dẫn được dựng từ slug quân (khóa của PIECES, cũng là tên file:
+    assets/pieces/{dark|light}/{slug}.png) chứ không cần thêm dữ liệu mới.
+    """
 
     @staticmethod
     def _path(side: str, piece: str) -> str:
+        """Ghép thư mục theo phe (dark/light) với tên file ảnh của quân."""
+
         color = "dark" if PlayerSide.is_dark(side) else "light"
         return _asset_path("pieces", color, f"{piece}.png")
 
-    rat = staticmethod(lambda side: PieceAvatar._path(side, "rat"))
-    cat = staticmethod(lambda side: PieceAvatar._path(side, "cat"))
-    dog = staticmethod(lambda side: PieceAvatar._path(side, "dog"))
-    wolf = staticmethod(lambda side: PieceAvatar._path(side, "wolf"))
-    leopard = staticmethod(lambda side: PieceAvatar._path(side, "leopard"))
-    tiger = staticmethod(lambda side: PieceAvatar._path(side, "tiger"))
-    lion = staticmethod(lambda side: PieceAvatar._path(side, "lion"))
-    elephant = staticmethod(lambda side: PieceAvatar._path(side, "elephant"))
+    @staticmethod
+    def rat(side: str) -> str:
+        """Ảnh đại diện của Chuột theo phe."""
+
+        return PieceAvatar._path(side, "rat")
+
+    @staticmethod
+    def cat(side: str) -> str:
+        """Ảnh đại diện của Mèo theo phe."""
+
+        return PieceAvatar._path(side, "cat")
+
+    @staticmethod
+    def dog(side: str) -> str:
+        """Ảnh đại diện của Chó theo phe."""
+
+        return PieceAvatar._path(side, "dog")
+
+    @staticmethod
+    def wolf(side: str) -> str:
+        """Ảnh đại diện của Sói theo phe."""
+
+        return PieceAvatar._path(side, "wolf")
+
+    @staticmethod
+    def leopard(side: str) -> str:
+        """Ảnh đại diện của Báo theo phe."""
+
+        return PieceAvatar._path(side, "leopard")
+
+    @staticmethod
+    def tiger(side: str) -> str:
+        """Ảnh đại diện của Hổ theo phe."""
+
+        return PieceAvatar._path(side, "tiger")
+
+    @staticmethod
+    def lion(side: str) -> str:
+        """Ảnh đại diện của Sư tử theo phe."""
+
+        return PieceAvatar._path(side, "lion")
+
+    @staticmethod
+    def elephant(side: str) -> str:
+        """Ảnh đại diện của Voi theo phe."""
+
+        return PieceAvatar._path(side, "elephant")
 
 
 class PieceArtWork:
-    """Ảnh minh họa lớn dùng trên bảng thông tin."""
+    """Ảnh minh họa lớn dùng trên bảng thông tin.
+
+    Cùng slug với PieceAvatar nhưng đọc từ thư mục assets/artworks thay vì
+    assets/pieces, phục vụ khung ảnh lớn (Size.ARTWORK) trên thẻ thông tin.
+    """
 
     @staticmethod
     def _path(side: str, piece: str) -> str:
+        """Ghép thư mục theo phe (dark/light) với tên file minh họa của quân."""
+
         color = "dark" if PlayerSide.is_dark(side) else "light"
         return _asset_path("artworks", color, f"{piece}.png")
 
-    rat = staticmethod(lambda side: PieceArtWork._path(side, "rat"))
-    cat = staticmethod(lambda side: PieceArtWork._path(side, "cat"))
-    dog = staticmethod(lambda side: PieceArtWork._path(side, "dog"))
-    wolf = staticmethod(lambda side: PieceArtWork._path(side, "wolf"))
-    leopard = staticmethod(lambda side: PieceArtWork._path(side, "leopard"))
-    tiger = staticmethod(lambda side: PieceArtWork._path(side, "tiger"))
-    lion = staticmethod(lambda side: PieceArtWork._path(side, "lion"))
-    elephant = staticmethod(lambda side: PieceArtWork._path(side, "elephant"))
+    @staticmethod
+    def rat(side: str) -> str:
+        """Ảnh minh họa của Chuột theo phe."""
+
+        return PieceArtWork._path(side, "rat")
+
+    @staticmethod
+    def cat(side: str) -> str:
+        """Ảnh minh họa của Mèo theo phe."""
+
+        return PieceArtWork._path(side, "cat")
+
+    @staticmethod
+    def dog(side: str) -> str:
+        """Ảnh minh họa của Chó theo phe."""
+
+        return PieceArtWork._path(side, "dog")
+
+    @staticmethod
+    def wolf(side: str) -> str:
+        """Ảnh minh họa của Sói theo phe."""
+
+        return PieceArtWork._path(side, "wolf")
+
+    @staticmethod
+    def leopard(side: str) -> str:
+        """Ảnh minh họa của Báo theo phe."""
+
+        return PieceArtWork._path(side, "leopard")
+
+    @staticmethod
+    def tiger(side: str) -> str:
+        """Ảnh minh họa của Hổ theo phe."""
+
+        return PieceArtWork._path(side, "tiger")
+
+    @staticmethod
+    def lion(side: str) -> str:
+        """Ảnh minh họa của Sư tử theo phe."""
+
+        return PieceArtWork._path(side, "lion")
+
+    @staticmethod
+    def elephant(side: str) -> str:
+        """Ảnh minh họa của Voi theo phe."""
+
+        return PieceArtWork._path(side, "elephant")
