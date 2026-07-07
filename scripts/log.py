@@ -13,6 +13,7 @@ import pandas as pd
 
 from scripts.bot import Bot
 from scripts.common import DATA_DIR, PlayerSide
+from scripts.encoding import PIECE_SYMBOLS
 
 
 class Log:
@@ -91,16 +92,7 @@ class Log:
     def map_piece_name(piece) -> str:
         """Mã hóa loại quân; chữ thường là phe tối, chữ hoa là phe sáng."""
 
-        symbol = {
-            "rat": "r",
-            "cat": "c",
-            "dog": "d",
-            "wolf": "w",
-            "leopard": "p",
-            "tiger": "t",
-            "lion": "l",
-            "elephant": "e",
-        }.get(type(piece).__name__.lower(), "-")
+        symbol = PIECE_SYMBOLS.get(type(piece).__name__.lower(), "-")
         return symbol if piece.is_dark else symbol.upper()
 
     @staticmethod

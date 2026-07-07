@@ -14,31 +14,15 @@ import numpy as np
 from scripts.board import Board
 from scripts.bot import Bot
 from scripts.common import BEST_MODEL_PATH, GameMode, GameState, PlayerSide, Size, SPAN
+from scripts.encoding import PIECE_ENCODING, encode_board, encode_piece
 from scripts.log import Log
 
 
 class GameManager:
     """Giữ state ván chơi và nối UI với bàn cờ, bot, log, model AI."""
 
-    PIECE_ENCODING = {
-        "-": 0,
-        "r": 1,
-        "c": 2,
-        "d": 3,
-        "w": 4,
-        "p": 5,
-        "t": 6,
-        "l": 7,
-        "e": 8,
-        "R": -1,
-        "C": -2,
-        "D": -3,
-        "W": -4,
-        "P": -5,
-        "T": -6,
-        "L": -7,
-        "E": -8,
-    }
+    # Giữ alias để code/test cũ dùng GameManager.PIECE_ENCODING vẫn chạy được.
+    PIECE_ENCODING = PIECE_ENCODING
 
     def __init__(
         self, game_mode: int = GameMode.PvC, model_path=BEST_MODEL_PATH
@@ -214,7 +198,7 @@ class GameManager:
         for move in moves:
             candidate = self.board.copy()
             candidate.make_move(move)
-            encoded_boards.append(self.encode_board(Log.board_to_enum(candidate)))
+            encoded_boards.append(encode_board(Log.board_to_enum(candidate)))
         batch = np.stack(encoded_boards, axis=0)[..., np.newaxis]
         scores = np.asarray(model.predict(batch, verbose=0)).reshape(-1)
         index = int(
@@ -233,22 +217,10 @@ class GameManager:
         self.game_result = f"{winner.upper()}\nWIN!!!" if winner else "DRAW"
         return True
 
-    @staticmethod
-    def encode_piece(piece_char: str) -> int:
-        return GameManager.PIECE_ENCODING.get(piece_char, 0)
-
-    @staticmethod
-    def encode_board(board_str: str) -> np.ndarray:
-        """Mã hóa chuỗi 63 ô thành tensor 9x7 tương thích model hiện có."""
-
-        if len(board_str) != 63:
-            raise ValueError(f"Bàn cờ phải có 63 ký tự, nhận {len(board_str)}.")
-        values = np.fromiter(
-            (GameManager.encode_piece(char) for char in reversed(board_str)),
-            dtype=np.float32,
-            count=63,
-        )
-        return np.flip(values.reshape(7, 9).T, axis=(0, 1)).copy()
+    # Giữ API cũ: GameManager.encode_board/encode_piece vẫn gọi được như trước,
+    # nhưng triển khai thật nay chỉ còn ở scripts.encoding (một nguồn sự thật).
+    encode_piece = staticmethod(encode_piece)
+    encode_board = staticmethod(encode_board)
 
     @staticmethod
     def algorithm_random(opponent_pieces: int) -> int:
