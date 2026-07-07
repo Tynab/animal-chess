@@ -1,0 +1,86 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+Animal Chess (Đấu Thú Kỳ) — a Pygame two-player strategy game: 7×9 board with rivers/traps/dens, eight ranked pieces per side, three modes (PvP / PvC / CvC), a search bot (minimax, alpha-beta, BFS, A*), and a CNN that scores positions. Every played move is logged to `data/dark_<timestamp>.csv`, feeding a CSV→CNN retraining pipeline.
+
+## Architecture
+
+One-way flow: **`Board` (rules/state) → `GameManager` (orchestration) ← `Bot`/CNN (decisions)**; `main.py` owns the event/render loop, `Log` siphons training data.
+
+- **`main.py`** — async loop; `await asyncio.sleep(0)` keeps the window responsive during CvC (per its docstring). A live browser demo runs at tynab.github.io/Animal-Chess, but no web-build (pygbag/WASM) config is committed. Routes events only.
+- **`scripts/board.py`** — source of truth for pieces/terrain/history; valid-move generation and win detection.
+- **`scripts/manager.py`** — wires UI↔board/bot/log/model; turn state, `autoplay`, batched model inference.
+- **`scripts/bot.py`** — stateless statics: `evaluate_position` (den ±900 + material), `minimax`, `minimax_alpha_beta_pruning`, `breadth_first_search`, `a_star_search`.
+- **`scripts/piece.py`** — base `Piece` (4-directional moves, capture) and `RiverJumper` (a `Piece` subclass, base for Tiger/Lion). Concrete pieces in `scripts/pieces/` add metadata + rule overrides only.
+- **`scripts/{cell,common,log,rendering}.py`** — one terrain cell; all constants/paths/enums; CSV serialization; lazy-loaded rendering (also owns `START_BTN_RECT`, hit-tested by `main.py`).
+
+## Build / Test / Run (PowerShell · Windows · Python 3.11 · CPU TensorFlow)
+
+```powershell
+# Setup — Git LFS required; CSV/H5/JPG/PNG are LFS pointers
+git lfs install; git lfs pull
+py -m venv .venv; .\.venv\Scripts\Activate.ps1
+py -m pip install -r requirements.txt
+
+py main.py                          # run (default PvC; edit DEFAULT_GAME_MODE in main.py)
+
+# Quality checks — there is NO test suite and NO CI (.github/ has only FUNDING.yml)
+py -m compileall -q main.py scripts
+py -m pip install ruff; py -m ruff check main.py scripts   # ruff is NOT in requirements.txt, no config -> runs on defaults
+py -m jupyter nbconvert --to notebook --execute --inplace merge.ipynb split.ipynb train.ipynb   # safe "preview" when no RUN_* env var is set
+```
+
+Verification = the compile/ruff pass, running the game (or a CvC self-play run), and preview-executing the notebooks. All checks are manual.
+
+### Data & training pipeline (three independent notebooks)
+
+Each notebook is **gated by an env var and defaults to a read-only preview** (checks sources, prints a sample, writes nothing). They are **not a strict linear chain** — see the note.
+
+```powershell
+# merge.ipynb — data/dark_*.csv -> data/{dark,light,animal_chess}.csv
+#   light = 180° board rotation + sign flip; animal_chess = dark+light with the `id` column dropped
+$env:RUN_DATA_PIPELINE='1'; py -m jupyter nbconvert --to notebook --execute --inplace merge.ipynb; Remove-Item Env:RUN_DATA_PIPELINE
+
+# split.ipynb — data/dark.csv -> data/chunks/dark_*.csv (atomic .tmp+rename)
+#   DELETE_DERIVED_SOURCES=1 also deletes dark/light/animal_chess.csv
+$env:RUN_DATA_SPLIT='1'; py -m jupyter nbconvert --to notebook --execute --inplace split.ipynb; Remove-Item Env:RUN_DATA_SPLIT
+
+# train.ipynb — 5-fold KFold CNN; best val_loss fold -> models/best_model.h5
+$env:RUN_MODEL_TRAINING='1'; $env:MAX_TRAIN_ROWS='1000000'; py -m jupyter nbconvert --to notebook --execute --inplace train.ipynb --ExecutePreprocessor.timeout=-1; Remove-Item Env:RUN_MODEL_TRAINING; Remove-Item Env:MAX_TRAIN_ROWS
+```
+
+- **`train.ipynb` reads `data/dark_*.csv` from the repo root** (raw dark-side session logs + seed `dark_1..3.csv`), using only the `board`/`score` columns. It does **not** consume merge's `animal_chess.csv`/`light.csv` or split's `data/chunks/`. So merge/split are utilities, not prerequisites for training as wired.
+- Extra tuning env vars (defaults): `CSV_CHUNK_SIZE=250000`, `ROWS_PER_FILE=15000000`, `MAX_TRAIN_ROWS=1000000`, `READ_CHUNK_SIZE=100000`, `GPU_LIMIT_MB=10240`; seed `RANDOM_STATE=42`.
+- Model input `(9,7,1)`: 2×[Conv2D–BatchNorm–LeakyReLU–MaxPool] → Dense(2048, L2) → Dropout → Dense(1, linear); Adam/MSE.
+
+## Coding conventions
+
+- **Docstrings and comments are written in Vietnamese** — keep that convention when editing.
+- Match the surrounding style: `common.py` centralizes constants/paths/enums as classes of `@staticmethod` helpers and `is_*` predicates; reuse them instead of hard-coding literals or new paths.
+- A new piece = a subclass in `scripts/pieces/` that only supplies metadata (name/detail/position/atk/avatar) and overrides the specific rule method; import sibling piece classes **locally inside the method** to avoid circular imports.
+- No test suite exists — after any change, verify with the compile/ruff pass and by running the game (or a CvC run), not by adding a framework unless asked.
+
+## Rules when editing code
+
+- **Coordinates are `(x, y)` = `cells[x][y]`**: `x` = column 0..6 (`W=7`), `y` = row 0..8 (`H=9`). Move string `A1B2` maps column→letter, row→1-indexed number (`Log.move_to_enum` / `enum_to_position`). Swapping x/y is the top bug source.
+- **AI search runs on image-free copies** (`Board.copy()`/`Piece.copy()`, `is_copy=True`); `bot.py` never imports Pygame — keep search headless/cheap.
+- **Movement rules:** no piece may enter **its own den**; regular pieces cannot enter rivers. **Rat & Dog** override `is_valid_cell` to walk into rivers. **Tiger & Lion** (`RiverJumper`) jump over a river, but *any* piece in an intervening river cell blocks the jump.
+- **Traps zero attack, not identity:** `Cell.add_piece` sets `piece.atk = 0` in the *opponent's* trap (keeps `base_atk`); capture keys off live `atk`, so a trapped piece falls to anything.
+- **Rat ↔ Elephant** mutual exception: Rat beats Elephant only while its `atk != 0`; Elephant beats Rat only when Rat's `atk == 0`.
+- **Repetition:** `Board.get_forbidden` bans a move repeated 3× on a 4-ply cycle; `available_cells`/`get_valid_moves` filter it.
+- **Win:** opponent's den invaded, opponent has no pieces, or opponent has no legal move.
+- **CNN scoring is dark-perspective.** Logged `score` is always `evaluate_position(board, DARK)`; `ai_move` scores every legal move's resulting board in one batch and picks **dark→argmax, light→argmin**. Missing/unloadable H5 → warn once, fall back to minimax.
+- **`computer_move` is randomized:** 50/50 plain-minimax vs alpha-beta (both depth 2), then routes the tied best moves via BFS or A* (weighted toward BFS when the opponent has *more* pieces, i.e. early game; toward A* in the endgame — see `algorithm_random`).
+
+## Do NOT change without regenerating data / retraining
+
+These formats are load-bearing for the on-disk CSVs and the trained `best_model.h5`:
+
+- **`make_move` / `undo_move` symmetry** and the `captured_pieces` stack synced with `move_history` — minimax mutates the live board and relies on exact undo (undo asserts the sync).
+- **Board string format (`Log.board_to_enum`)**: 63 chars, column-major; lowercase = dark, uppercase = light, `-` = empty. Matches every existing CSV.
+- **The board→tensor encoder**: `encode_board` does reverse → `reshape(7,9)` → transpose → flip (2D `(9,7)`; channel axis → `(9,7,1)` added at batch time), and `PIECE_ENCODING` (dark positive 1..8, light negative -1..-8). `train.ipynb` re-implements the identical encoder — change neither in isolation.
+- **`Log.enum_to_postion`** (misspelled) is a kept backward-compat alias for external notebooks — do not remove/rename.
+- **Git LFS**: never commit `*.csv`/`*.h5`/`*.jpg`/`*.png` as plain files; they are LFS-tracked in `.gitattributes`.
