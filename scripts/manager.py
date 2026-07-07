@@ -252,7 +252,7 @@ class GameManager:
 
     @staticmethod
     def algorithm_random(opponent_pieces: int) -> int:
-        """Tăng xác suất BFS khi số quân đối phương giảm."""
+        """Nghiêng về BFS khi đối phương còn nhiều quân; nghiêng về A* ở tàn cuộc."""
 
         bounded = max(0, min(8, opponent_pieces))
         return random.choice([1] * (8 + bounded * 2) + [2] * (24 - bounded * 2))
