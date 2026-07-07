@@ -1,9 +1,15 @@
+# Runtime — game, engine và suy luận model (main.py + scripts/)
 pygame==2.6.1
 numpy==2.1.3
 pandas==2.3.0
-scikit-learn==1.7.1
 tensorflow==2.19.0
 h5py==3.14.0
+
+# Pipeline dữ liệu & huấn luyện (merge/split/train.ipynb)
+scikit-learn==1.7.1
 jupyter==1.1.1
 nbconvert==7.17.1
 ipykernel==7.3.0
+
+# Kiểm tra chất lượng mã
+ruff==0.15.18
