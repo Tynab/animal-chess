@@ -12,10 +12,11 @@ One-way flow: **`Board` (rules/state) → `GameManager` (orchestration) ← `Bot
 
 - **`main.py`** — async loop; `await asyncio.sleep(0)` keeps the window responsive during CvC (per its docstring). A live browser demo runs at tynab.github.io/Animal-Chess, but no web-build (pygbag/WASM) config is committed. Routes events only.
 - **`scripts/board.py`** — source of truth for pieces/terrain/history; valid-move generation and win detection.
-- **`scripts/manager.py`** — wires UI↔board/bot/log/model; turn state, `autoplay`, batched model inference.
-- **`scripts/bot.py`** — stateless statics: `evaluate_position` (den ±900 + material), `minimax`, `minimax_alpha_beta_pruning`, `breadth_first_search`, `a_star_search`.
-- **`scripts/piece.py`** — base `Piece` (4-directional moves, capture) and `RiverJumper` (a `Piece` subclass, base for Tiger/Lion). Concrete pieces in `scripts/pieces/` add metadata + rule overrides only.
-- **`scripts/{cell,common,log,rendering}.py`** — one terrain cell; all constants/paths/enums; CSV serialization; lazy-loaded rendering (also owns `START_BTN_RECT`, hit-tested by `main.py`).
+- **`scripts/manager.py`** — `GameManager` (UI↔board/bot/log, turn state, `autoplay`) plus `ModelEvaluator` (lazy model load + batched inference + warn-once fallback).
+- **`scripts/bot.py`** — stateless statics: `evaluate_position` (den ±900 + material), `minimax`/`minimax_alpha_beta_pruning` (thin delegators over a shared `_search(prune=…)`), `breadth_first_search`, `a_star_search`.
+- **`scripts/piece.py`** — base `Piece` (4-directional moves, capture), `RiverJumper` (Tiger/Lion base), and `build_piece_args` (pulls a piece's metadata from `common.PIECES`). Concrete pieces in `scripts/pieces/` are just a `KEY` + rule overrides.
+- **`scripts/encoding.py`** — `PIECE_ENCODING` + `encode_board` (board→tensor), shared by `manager.py` and `train.ipynb`.
+- **`scripts/{cell,common,log,rendering}.py`** — one terrain cell; `common.PIECES` table + all constants/paths/enums; CSV serialization; lazy-loaded rendering (also owns `START_BTN_RECT`, hit-tested by `main.py`).
 
 ## Build / Test / Run (PowerShell · Windows · Python 3.11 · CPU TensorFlow)
 
@@ -27,13 +28,14 @@ py -m pip install -r requirements.txt
 
 py main.py                          # run (default PvC; edit DEFAULT_GAME_MODE in main.py)
 
-# Quality checks — there is NO test suite and NO CI (.github/ has only FUNDING.yml)
-py -m compileall -q main.py scripts
-py -m pip install ruff; py -m ruff check main.py scripts   # ruff is NOT in requirements.txt, no config -> runs on defaults
+# Quality checks — the only "tests" are the smoke harness + these; no CI (.github/ has only FUNDING.yml)
+py tools\smoke_test.py                   # headless golden/smoke test (no display/assets/LFS needed)
+py -m compileall -q main.py scripts tools
+py -m ruff check main.py scripts tools   # ruff is pinned in requirements.txt; no config -> runs on defaults
 py -m jupyter nbconvert --to notebook --execute --inplace merge.ipynb split.ipynb train.ipynb   # safe "preview" when no RUN_* env var is set
 ```
 
-Verification = the compile/ruff pass, running the game (or a CvC self-play run), and preview-executing the notebooks. All checks are manual.
+Verification = `tools/smoke_test.py` (asserts the load-bearing formats), the compile/ruff pass, running the game (or a CvC self-play run), and preview-executing the notebooks. All manual.
 
 ### Data & training pipeline (three independent notebooks)
 
@@ -59,9 +61,9 @@ $env:RUN_MODEL_TRAINING='1'; $env:MAX_TRAIN_ROWS='1000000'; py -m jupyter nbconv
 ## Coding conventions
 
 - **Docstrings and comments are written in Vietnamese** — keep that convention when editing.
-- Match the surrounding style: `common.py` centralizes constants/paths/enums as classes of `@staticmethod` helpers and `is_*` predicates; reuse them instead of hard-coding literals or new paths.
-- A new piece = a subclass in `scripts/pieces/` that only supplies metadata (name/detail/position/atk/avatar) and overrides the specific rule method; import sibling piece classes **locally inside the method** to avoid circular imports.
-- No test suite exists — after any change, verify with the compile/ruff pass and by running the game (or a CvC run), not by adding a framework unless asked.
+- Match the surrounding style: `common.py` centralizes piece metadata in the `PIECES` table and constants/paths/enums as classes of `@staticmethod` helpers and `is_*` predicates; reuse them instead of hard-coding literals or new paths.
+- A new piece = an entry in `common.PIECES` plus a thin subclass in `scripts/pieces/` (a `KEY` + `copy()`, metadata pulled via `build_piece_args`) that overrides only its special rule; import sibling piece classes **locally inside the method** to avoid circular imports.
+- After any change, run `tools/smoke_test.py` (+ compile/ruff) and the game; extend the smoke harness rather than adding a heavier test framework unless asked.
 
 ## Rules when editing code
 
@@ -81,6 +83,6 @@ These formats are load-bearing for the on-disk CSVs and the trained `best_model.
 
 - **`make_move` / `undo_move` symmetry** and the `captured_pieces` stack synced with `move_history` — minimax mutates the live board and relies on exact undo (undo asserts the sync).
 - **Board string format (`Log.board_to_enum`)**: 63 chars, column-major; lowercase = dark, uppercase = light, `-` = empty. Matches every existing CSV.
-- **The board→tensor encoder**: `encode_board` does reverse → `reshape(7,9)` → transpose → flip (2D `(9,7)`; channel axis → `(9,7,1)` added at batch time), and `PIECE_ENCODING` (dark positive 1..8, light negative -1..-8). `train.ipynb` re-implements the identical encoder — change neither in isolation.
+- **The board→tensor encoder** (`scripts/encoding.py`): `encode_board` does reverse → `reshape(7,9)` → transpose → flip (2D `(9,7)`; channel axis → `(9,7,1)` added at batch time), and `PIECE_ENCODING` (dark positive 1..8, light negative -1..-8). `train.ipynb` imports the SAME `encode_board`; its output is guarded by `tools/smoke_test.py` — do not alter the math.
 - **`Log.enum_to_postion`** (misspelled) is a kept backward-compat alias for external notebooks — do not remove/rename.
 - **Git LFS**: never commit `*.csv`/`*.h5`/`*.jpg`/`*.png` as plain files; they are LFS-tracked in `.gitattributes`.
