@@ -193,8 +193,12 @@ class Bot:
             return None, None
 
         # Hàm heuristic: khoảng cách Manhattan tới mục tiêu GẦN NHẤT trong
-        # tập targets còn lại — heuristic này admissible (không đánh giá quá
-        # cao chi phí thật) nên A* vẫn đảm bảo tối ưu.
+        # tập targets còn lại — heuristic này admissible với quân đi từng ô
+        # một, nhưng KHÔNG admissible với Hổ/Sư Tử (RiverJumper): một cú
+        # nhảy qua sông tốn chi phí 1 nhưng vượt nhiều ô, nên chi phí thật có
+        # thể thấp hơn khoảng cách Manhattan. Vì vậy A* này chỉ là gợi ý
+        # đường đi ngắn tốt nhất có thể (best-effort), không đảm bảo tối ưu
+        # tuyệt đối trong mọi trường hợp.
         def heuristic(position: tuple[int, int]) -> int:
             x, y = position
             return min(abs(x - tx) + abs(y - ty) for tx, ty in targets)

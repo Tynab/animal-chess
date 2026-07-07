@@ -184,7 +184,7 @@ class RiverJumper(Piece):
 
         while cell and cell.is_river:
             if cell.piece:
-                # Có quân (Chuột) đứng trong sông chặn đường -> không nhảy được.
+                # Có quân (Chuột hoặc Chó) đứng trong sông chặn đường -> không nhảy được.
                 return None
             step += 1
             cell = direction(step, board)

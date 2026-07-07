@@ -4,14 +4,16 @@ Module gom cấu hình bàn cờ, trạng thái, tài nguyên và thông tin qu�
 nơi duy nhất. Các lớp giữ API cũ để những module game không phải biết cách tài
 nguyên được tổ chức trên đĩa.
 
-``PIECES`` là NGUỒN SỰ THẬT DUY NHẤT cho dữ liệu tám quân cờ (vị trí xuất phát,
-tên hiển thị, điểm tấn công, mô tả luật riêng). Trước khi có bảng này, bốn
-nhóm lớp CellPosition/PieceName/PieceAvatar/PieceArtWork mỗi lớp lặp lại tám
-staticmethod gần như giống hệt nhau (chỉ khác tên quân), còn PieceAtk/
-PieceDetail liệt kê tám hằng số song song theo đúng thứ tự quân - sửa một giá
-trị phải nhớ sửa ở bốn, năm chỗ. Nay toàn bộ giá trị chỉ còn nằm ở PIECES, các
-lớp phía dưới chỉ tra bảng và giữ nguyên tên/API công khai cũ để không phá vỡ
-những module đã import chúng.
+``PIECES`` là NGUỒN SỰ THẬT DUY NHẤT cho vị trí xuất phát, tên hiển thị, điểm
+tấn công và mô tả luật riêng của tám quân cờ. Trước khi có bảng này, các lớp
+CellPosition/PieceName lặp lại tám staticmethod gần như giống hệt nhau (chỉ
+khác tên quân) để tra vị trí/tên riêng theo phe, còn PieceAtk/PieceDetail liệt
+kê tám hằng số song song theo đúng thứ tự quân - sửa một giá trị phải nhớ sửa
+ở bốn, năm chỗ. Nay CellPosition/PieceName/PieceAtk/PieceDetail chỉ tra bảng
+PIECES và giữ nguyên tên/API công khai cũ để không phá vỡ những module đã
+import chúng; riêng PieceAvatar/PieceArtWork KHÔNG tra PIECES mà tự dựng
+đường dẫn tài nguyên trực tiếp từ khóa (slug) của quân (vd. `_path(side,
+"rat")`), vì khóa đó cũng chính là tên file ảnh/minh họa trên đĩa.
 """
 
 from pathlib import Path

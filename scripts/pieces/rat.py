@@ -22,8 +22,10 @@ class Rat(Piece):
         from scripts.pieces.elephant import Elephant
 
         # Ngoại lệ bát thú: Chuột (cấp thấp nhất) hạ được Voi (cấp cao nhất)
-        # khi tấn công từ đất liền (atk != 0, tức Chuột không đứng trên bẫy);
-        # ngoài ngoại lệ đó vẫn theo luật thường: atk mình >= atk đối phương.
+        # khi chưa bị vô hiệu hóa (atk != 0, tức Chuột không đứng trên bẫy
+        # đối phương - atk chỉ bị triệt tiêu về 0 trên bẫy, không phải cứ ở
+        # dưới sông là mất sức, xem Cell.add_piece); ngoài ngoại lệ đó vẫn
+        # theo luật thường: atk mình >= atk đối phương.
         return (isinstance(piece, Elephant) and self.atk != 0) or self.atk >= piece.atk
 
     def is_valid_cell(self, cell) -> bool:
@@ -44,7 +46,8 @@ class Rat(Piece):
             piece.position
             for piece in opponents
             # Mục tiêu hợp lệ: quân yếu hơn theo luật thường, HOẶC là Voi mà
-            # Chuột đang tấn công từ đất liền (atk != 0) - khớp với can_defeat ở trên.
+            # Chuột chưa bị vô hiệu hóa (atk != 0, tức Chuột không đứng trên
+            # bẫy đối phương) - khớp với can_defeat ở trên.
             if piece.atk < self.atk or (isinstance(piece, Elephant) and self.atk != 0)
         ]
         return [PlayerSide.opponent_den_position(self.side), *targets]

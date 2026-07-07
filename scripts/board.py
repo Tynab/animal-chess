@@ -126,8 +126,11 @@ class Board:
         không được diễn ra ba lần liên tiếp giống hệt nhau, vì mỗi lần "mình"
         đi lại đúng nước đó cách nhau đúng 4 ply (mình - đối - mình - đối).
         ``move_history[-4:-13:-4]`` lấy tối đa 3 phần tử ở các vị trí -4, -8,
-        -12 (bước nhảy -4, dừng trước -13) — tức đúng những lần "mình" đã đi
-        ở 3 lượt gần nhất của riêng phe này. Nếu cả 3 giống nhau
+        -12 (bước nhảy -4, dừng trước -13) — tức lấy mẫu các lượt của "mình"
+        CÁCH QUÃNG cứ hai lượt một (bỏ qua lượt gần nhất của phe này, lấy tiếp
+        lượt thứ 2, thứ 4, thứ 6 tính ngược), KHÔNG PHẢI ba lượt gần nhất liên
+        tiếp; cách lấy mẫu này bắt đúng kiểu dao động qua lại (đi rồi lùi lặp
+        lại) theo chu kỳ 4 ply. Nếu cả 3 giống nhau
         (``len(set(...)) == 1``) thì nước đó bị cấm lặp lại lần thứ tư; nước
         bị cấm luôn được exclude khỏi ``get_valid_moves`` cho tới khi lịch sử
         thay đổi (một nước khác được đi) khiến hàm này trả None trở lại.
