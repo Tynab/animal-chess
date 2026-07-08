@@ -35,7 +35,7 @@ py -m ruff check main.py scripts tools   # ruff is pinned in requirements.txt; n
 py -m jupyter nbconvert --to notebook --execute --inplace merge.ipynb split.ipynb train.ipynb   # safe "preview" when no RUN_* env var is set
 ```
 
-Verification = `tools/smoke_test.py` (asserts the load-bearing formats), the compile/ruff pass, running the game (or a CvC self-play run), and preview-executing the notebooks. All manual.
+Verification = `tools/smoke_test.py` (asserts the load-bearing formats), the compile/ruff pass, running the game (or a CvC self-play run), and preview-executing the notebooks. All manual. **Headless tip:** `Board(is_copy=True)` builds a full *image-free* starting board (no display/assets/LFS — this is what `smoke_test.py` relies on), and `SDL_VIDEODRIVER=dummy` lets you drive `rendering`/`main.py` without a window.
 
 ### Data & training pipeline (three independent notebooks)
 
