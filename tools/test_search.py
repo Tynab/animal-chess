@@ -7,6 +7,7 @@ from scripts.board import Board
 from scripts.bot import Bot
 from scripts.common import PlayerSide
 from scripts.log import Log
+from scripts.pieces.rat import Rat
 from scripts.search import SearchEngine, search_eval, zobrist_key
 
 
@@ -74,6 +75,23 @@ def main() -> int:
     if searched.move_history or Log.board_to_enum(searched) != before_search:
         ok = False
         print("[SAI] best_move không khôi phục bàn sau timeout")
+
+    # Rung 2 — số hạng phòng thủ hang.
+    if search_eval(b, PlayerSide.DARK, 0, 0) != Bot.evaluate_position(b, PlayerSide.DARK):
+        ok = False
+        print("[SAI] search_eval(0,0) != evaluate_position")
+    # Đặt một quân TỐI trong bán kính hang tối (3,0) -> defense dương cho DARK, âm cho LIGHT.
+    guard = Board(with_pieces=False, is_copy=True)
+    guard.get_cell((3, 2)).add_piece(Rat(PlayerSide.DARK, is_copy=True))
+    guard.update_pieces()
+    dark_contrib = search_eval(guard, PlayerSide.DARK, 0, 1) - search_eval(guard, PlayerSide.DARK, 0, 0)
+    light_contrib = search_eval(guard, PlayerSide.LIGHT, 0, 1) - search_eval(guard, PlayerSide.LIGHT, 0, 0)
+    if dark_contrib <= 0:
+        ok = False
+        print(f"[SAI] defense không dương khi có quân canh hang nhà: {dark_contrib}")
+    if light_contrib >= 0:
+        ok = False
+        print(f"[SAI] defense không âm cho phe đối diện: {light_contrib}")
 
     print("SEARCH_OK" if ok else "SEARCH_FAIL")
     return 0 if ok else 1

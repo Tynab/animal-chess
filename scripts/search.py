@@ -62,21 +62,45 @@ def _den_gradient(board, side, coef) -> int:
     return total
 
 
-def search_eval(board, side, gradient_coef=1) -> int:
-    """Điểm thế cờ theo góc nhìn `side` = vật chất+hang + gradient nhỏ."""
-    return Bot.evaluate_position(board, side) + _den_gradient(board, side, gradient_coef)
+def _den_defense(board, side, coef) -> int:
+    """Thưởng khi quân ta canh hang NHÀ (chặn xâm nhập); trừ khi địch canh hang địch
+    (ta khó xâm nhập). Góc nhìn `side`, số học rẻ trên board.pieces."""
+    if not coef:
+        return 0
+    mdx, mdy = PlayerSide.player_den_position(side)            # hang nhà
+    odx, ody = PlayerSide.opponent_den_position(side)          # hang địch
+    total = 0
+    for piece in board.pieces:
+        px, py = piece.position
+        if piece.side == side:
+            d = abs(px - mdx) + abs(py - mdy)
+            if d <= 2:
+                total += coef * (3 - d)
+        else:
+            d = abs(px - odx) + abs(py - ody)
+            if d <= 2:
+                total -= coef * (3 - d)
+    return total
+
+
+def search_eval(board, side, gradient_coef=1, defense_coef=0) -> int:
+    """Điểm thế cờ theo góc nhìn `side` = vật chất+hang + gradient + phòng thủ hang."""
+    return (Bot.evaluate_position(board, side)
+            + _den_gradient(board, side, gradient_coef)
+            + _den_defense(board, side, defense_coef))
 
 
 class SearchEngine:
     """Alpha-beta iterative-deepening có TT; dùng search_eval làm đánh giá lá."""
 
     def __init__(self, time_budget_s=1.0, max_depth=None, tt_size=2**20,
-                 gradient_coef=1, quiescence=True) -> None:
+                 gradient_coef=1, quiescence=True, defense_coef=0) -> None:
         self.time_budget_s = time_budget_s
         self.max_depth = max_depth
         self.tt_size = tt_size
         self.gradient_coef = gradient_coef
         self.quiescence = quiescence
+        self.defense_coef = defense_coef
         self.tt = {}
         self.killers = {}
         self.history = {}
@@ -101,7 +125,7 @@ class SearchEngine:
 
     def _quiescence(self, board, side, alpha, beta):
         self.nodes += 1
-        stand = search_eval(board, side, self.gradient_coef)
+        stand = search_eval(board, side, self.gradient_coef, self.defense_coef)
         if board.is_game_over or stand >= beta:
             return beta if stand >= beta else stand
         if stand > alpha:
@@ -140,15 +164,15 @@ class SearchEngine:
                 return val
 
         if board.is_game_over:
-            return search_eval(board, side, self.gradient_coef)
+            return search_eval(board, side, self.gradient_coef, self.defense_coef)
         if depth == 0:
             if self.quiescence:
                 return self._quiescence(board, side, alpha, beta)
-            return search_eval(board, side, self.gradient_coef)
+            return search_eval(board, side, self.gradient_coef, self.defense_coef)
 
         moves = board.get_valid_moves(side)
         if not moves:
-            return search_eval(board, side, self.gradient_coef)
+            return search_eval(board, side, self.gradient_coef, self.defense_coef)
 
         best_val, best_move = -INF, None
         for mv in self._ordered(board, side, moves, tt_move, ply):
