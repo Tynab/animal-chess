@@ -84,6 +84,7 @@ data/dark.csv
 data/light.csv
 data/animal_chess.csv
 data/chunks/
+data/selfplay_*.csv
 models/fold_*.keras
 
 # IPython
