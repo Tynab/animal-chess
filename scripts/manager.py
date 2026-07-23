@@ -6,6 +6,7 @@ vì dừng đột ngột.
 """
 
 from pathlib import Path
+import os
 import random
 import warnings
 
@@ -16,6 +17,7 @@ from scripts.bot import Bot
 from scripts.common import BEST_MODEL_PATH, GameMode, GameState, PlayerSide, Size, SPAN
 from scripts.encoding import PIECE_ENCODING, encode_board, encode_piece
 from scripts.log import Log
+from scripts.search import SearchEngine
 
 
 class ModelEvaluator:
@@ -108,6 +110,7 @@ class GameManager:
         # Toàn bộ việc nạp model + dự đoán batch nay do ModelEvaluator lo;
         # GameManager không còn tự giữ self._model/_model_unavailable nữa.
         self.evaluator = ModelEvaluator(model_path)
+        self.engine = SearchEngine(time_budget_s=float(os.getenv("SEARCH_TIME_S", "1.0")))
         self.log = Log()
         self.board = Board()
         self.game_state = GameState.NEW
@@ -172,7 +175,7 @@ class GameManager:
     def autoplay(self) -> None:
         """Cho máy đi bằng model; tự dùng minimax nếu model không khả dụng."""
 
-        move = self.ai_move() or self.computer_move()
+        move, _ = self.engine.best_move(self.board, self.current_side)
         if move is None:
             self.is_game_end
             return
