@@ -1,9 +1,10 @@
 # tools/selfplay.py
 """Sinh dữ liệu self-play SẠCH cho Rung 3 (headless, không cần màn hình).
 
-Chính sách sinh: minimax ngẫu nhiên (GameManager.computer_move) + ngẫu nhiên
-hoá khai cuộc (OPENING_RANDOM_PLIES ply đầu) để đa dạng ván. Ván vượt MAX_PLIES
-bị cắt và tính hòa (dòng cuối winner=0). Ghi qua Log rồi đổi tên file thành
+Chính sách sinh: các ply sau khai cuộc dùng engine tìm kiếm sâu
+(SearchEngine.best_move ở max_depth thấp) + ngẫu nhiên hoá khai cuộc
+(OPENING_RANDOM_PLIES ply đầu) để đa dạng ván. Ván vượt MAX_PLIES bị cắt và
+tính hòa (dòng cuối winner=0). Ghi qua Log rồi đổi tên file thành
 selfplay_<timestamp>.csv để tách khỏi log 'dark_*' cũ."""
 import os
 import random
@@ -39,7 +40,7 @@ def _play_one_game(
                 break
             move = random.choice(moves)
         else:
-            move, _ = engine.best_move(gm.board, gm.current_side)  # deep search engine
+            move, _ = engine.best_move(gm.board, gm.current_side)  # engine tìm kiếm sâu
             if move is None:
                 break
         gm.board.make_move(move)

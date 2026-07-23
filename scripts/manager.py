@@ -173,7 +173,7 @@ class GameManager:
         return True
 
     def autoplay(self) -> None:
-        """Cho máy đi bằng model; tự dùng minimax nếu model không khả dụng."""
+        """Cho máy đi bằng engine tìm kiếm alpha-beta sâu (self.engine.best_move)."""
 
         move, _ = self.engine.best_move(self.board, self.current_side)
         if move is None:
@@ -249,12 +249,13 @@ class GameManager:
         return self._route_moves(best_moves, Bot.a_star_search)
 
     def ai_move(self):
-        """Ủy quyền chọn nước đi bằng model AI cho self.evaluator.
+        """Ủy quyền chọn nước cho model AI (CNN) qua self.evaluator.
 
         Chỉ còn là lớp vỏ mỏng (thin delegator): mọi logic nạp model, dự
-        đoán batch, argmax/argmin đều nằm trong ModelEvaluator.best_move;
-        giữ nguyên tên/method này để autoplay() (self.ai_move() or
-        self.computer_move()) không phải sửa gì.
+        đoán batch, argmax/argmin đều nằm trong ModelEvaluator.best_move.
+        Không còn là lựa chọn mặc định của autoplay() (nay dùng
+        self.engine.best_move) — giữ lại làm nước đi tham chiếu (baseline)
+        và phục vụ các đấu trường (Rung 3) so sánh với engine tìm kiếm sâu.
         """
 
         return self.evaluator.best_move(self.board, self.current_side)

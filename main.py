@@ -10,6 +10,10 @@ này: PvP luôn chờ người, PvC chỉ chờ người khi tới lượt phe s
 để máy tự đấu liên tục nhiều ván (giới hạn bởi ``AUTO_GAME_LIMIT``) — hữu ích
 để rả nhàn sinh dữ liệu ván đấu (xem ``scripts.log.Log``) mà không cần người
 bấm "Ván mới" thủ công sau mỗi ván.
+
+Với PvC/CvC, mỗi nước của máy nay do engine tìm kiếm sâu tính trong tối đa
+``SEARCH_TIME_S`` giây (mặc định 1.0), nên cửa sổ có thể tạm dừng ngắn trong
+lúc máy "suy nghĩ" (chỉnh biến môi trường này để nhanh/chậm hơn).
 """
 
 import asyncio
