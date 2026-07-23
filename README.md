@@ -88,10 +88,12 @@ Chế độ mặc định là PvC. Có thể đổi `DEFAULT_GAME_MODE` trong `m
 
 ## Cách máy chọn nước đi
 
-Mỗi lượt máy chạy `ai_move() or computer_move()`:
+Từ Rung 1, máy chọn nước bằng **engine tìm kiếm alpha-beta sâu** ([scripts/search.py](scripts/search.py) `SearchEngine`) qua `GameManager.autoplay`: iterative deepening + transposition table (Zobrist) + sắp xếp nước (MVV-LVA/killer/history) + quiescence; đánh giá lá = `Bot.evaluate_position` + gradient tiến-về-hang. Ngân sách `SEARCH_TIME_S` (mặc định 1.0s/nước); self-play dùng `SELFPLAY_MAX_DEPTH`. Đo sức mạnh: `py tools\strength.py` (engine vs bot CNN cũ; đạt khi score ≥ 0.80).
 
-- **`ai_move`** (ModelEvaluator): nạp `best_model.h5` một lần, mã hóa mọi thế cờ-sau-nước-đi và suy luận theo một batch; phe tối chọn `argmax`, phe sáng chọn `argmin` (điểm luôn theo góc nhìn phe tối). Nếu model thiếu/không nạp được, trả `None` và cảnh báo một lần.
-- **`computer_move`** (fallback minimax): tung đồng xu 50/50 giữa minimax và alpha-beta (đều depth 2), rồi định tuyến các nước đồng điểm qua BFS hoặc A*. Xác suất chọn BFS **tăng khi đối phương còn nhiều quân** (đầu ván) và nghiêng về A* ở tàn cuộc.
+Hai bộ chọn nước cũ **vẫn giữ** (cho arena/so sánh, không còn là mặc định):
+
+- **`ai_move`** (ModelEvaluator): nạp `best_model.h5` một lần, mã hóa mọi thế cờ-sau-nước-đi và suy luận theo một batch; phe tối chọn `argmax`, phe sáng chọn `argmin`.
+- **`computer_move`** (minimax depth-2): tung đồng xu 50/50 minimax vs alpha-beta, rồi định tuyến nước đồng điểm qua BFS/A* (thiên BFS khi đối phương còn nhiều quân, đầu ván).
 
 ## Luồng dữ liệu và huấn luyện
 

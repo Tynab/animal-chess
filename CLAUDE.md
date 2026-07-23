@@ -12,7 +12,8 @@ One-way flow: **`Board` (rules/state) → `GameManager` (orchestration) ← `Bot
 
 - **`main.py`** — async loop; `await asyncio.sleep(0)` keeps the window responsive during CvC (per its docstring). A live browser demo runs at tynab.github.io/Animal-Chess, but no web-build (pygbag/WASM) config is committed. Routes events only.
 - **`scripts/board.py`** — source of truth for pieces/terrain/history; valid-move generation and win detection.
-- **`scripts/manager.py`** — `GameManager` (UI↔board/bot/log, turn state, `autoplay`) plus `ModelEvaluator` (lazy model load + batched inference + warn-once fallback).
+- **`scripts/manager.py`** — `GameManager` (UI↔board/bot/log, turn state; `autoplay` picks moves via the search engine) plus `ModelEvaluator` (lazy model load + batched inference + warn-once fallback, kept for the arenas).
+- **`scripts/search.py`** — `SearchEngine` (Rung 1, **primary policy**): iterative-deepening alpha-beta + Zobrist transposition table + move ordering (MVV-LVA/killer/history) + quiescence; eval = `Bot.evaluate_position` + a den-gradient. `Bot.minimax`/`evaluate_position` stay untouched as its correctness reference/baseline.
 - **`scripts/bot.py`** — stateless statics: `evaluate_position` (den ±900 + material), `minimax`/`minimax_alpha_beta_pruning` (thin delegators over a shared `_search(prune=…)`), `breadth_first_search`, `a_star_search`.
 - **`scripts/piece.py`** — base `Piece` (4-directional moves, capture), `RiverJumper` (Tiger/Lion base), and `build_piece_args` (pulls a piece's metadata from `common.PIECES`). Concrete pieces in `scripts/pieces/` are just a `KEY` + rule overrides.
 - **`scripts/encoding.py`** — `PIECE_ENCODING` + `encode_board` (board→tensor), shared by `manager.py` and `train.ipynb`.
@@ -75,7 +76,8 @@ $env:RUN_MODEL_TRAINING='1'; $env:MAX_TRAIN_ROWS='1000000'; py -m jupyter nbconv
 - **Rat ↔ Elephant** mutual exception: Rat beats Elephant only while its `atk != 0`; Elephant beats Rat only when Rat's `atk == 0`.
 - **Repetition:** `Board.get_forbidden` bans a move repeated 3× on a 4-ply cycle; `available_cells`/`get_valid_moves` filter it.
 - **Win:** opponent's den invaded, opponent has no pieces, or opponent has no legal move.
-- **CNN scoring is dark-perspective.** Logged `score` is always `evaluate_position(board, DARK)`; `ai_move` scores every legal move's resulting board in one batch and picks **dark→argmax, light→argmin**. Missing/unloadable H5 → warn once, fall back to minimax.
+- **Primary move selection = `SearchEngine.best_move`** (deep alpha-beta, `scripts/search.py`) via `GameManager.autoplay`; budget `SEARCH_TIME_S` (default 1.0s), self-play uses `SELFPLAY_MAX_DEPTH`. Verify with `tools/perft.py` (make/undo integrity) + `tools/strength.py` (engine vs CNN, ≥0.80 bar). The CNN `ai_move` and `computer_move` below are **kept for the strength/Rung-3 arenas and as baselines**, no longer the default.
+- **CNN scoring is dark-perspective.** Logged `score` is always `evaluate_position(board, DARK)`; `ai_move` scores every legal move's resulting board in one batch and picks **dark→argmax, light→argmin**. Missing/unloadable H5 → warn once.
 - **`computer_move` is randomized:** 50/50 plain-minimax vs alpha-beta (both depth 2), then routes the tied best moves via BFS or A* (weighted toward BFS when the opponent has *more* pieces, i.e. early game; toward A* in the endgame — see `algorithm_random`).
 
 ## Do NOT change without regenerating data / retraining
