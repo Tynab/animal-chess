@@ -1,29 +1,17 @@
 """Quân Sói: quân cấp 4 dùng luật di chuyển cơ bản."""
 
-from scripts.common import (
-    CellPosition,
-    PieceArtWork,
-    PieceAtk,
-    PieceAvatar,
-    PieceDetail,
-    PieceName,
-)
-from scripts.piece import Piece
+from scripts.piece import Piece, build_piece_args
 
 
 class Wolf(Piece):
-    """Khởi tạo và sao chép quân Sói."""
+    """Không có luật riêng: dùng nguyên vẹn can_defeat/is_valid_cell của Piece."""
+
+    KEY = "wolf"  # Slug tra bảng metadata trong common.PIECES.
 
     def __init__(self, side: str, is_copy: bool = False) -> None:
-        super().__init__(
-            PieceName.wolf(side),
-            PieceDetail.WOLF,
-            CellPosition.wolf(side),
-            PieceAtk.WOLF,
-            side,
-            None if is_copy else PieceAvatar.wolf(side),
-            None if is_copy else PieceArtWork.wolf(side),
-        )
+        # Gom bảy tham số ctor từ bảng metadata thay vì gọi tay bốn lớp tra cứu.
+        super().__init__(**build_piece_args(self.KEY, side, is_copy))
 
     def copy(self):
+        # Bản sao dùng cho AI: is_copy=True bỏ qua ảnh để tiết kiệm RAM.
         return Wolf(self.side, is_copy=True)

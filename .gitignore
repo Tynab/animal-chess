@@ -84,6 +84,7 @@ data/dark.csv
 data/light.csv
 data/animal_chess.csv
 data/chunks/
+data/selfplay_*.csv
 models/fold_*.keras
 
 # IPython
@@ -158,3 +159,10 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# IDE / tooling
+.ruff_cache/
+.vscode/
+
+# Superpowers SDD scratch (ledger tiến độ, không thuộc dự án)
+.superpowers/

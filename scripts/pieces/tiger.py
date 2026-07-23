@@ -1,29 +1,17 @@
 """Quân Hổ: quân cấp 6 có thể nhảy qua sông nếu không bị Chuột chặn."""
 
-from scripts.common import (
-    CellPosition,
-    PieceArtWork,
-    PieceAtk,
-    PieceAvatar,
-    PieceDetail,
-    PieceName,
-)
-from scripts.piece import RiverJumper
+from scripts.piece import RiverJumper, build_piece_args
 
 
 class Tiger(RiverJumper):
-    """Dùng chung thuật toán nhảy sông với Sư tử."""
+    """Dùng chung thuật toán nhảy sông (available_cells) với Sư tử qua RiverJumper."""
+
+    KEY = "tiger"  # Slug tra bảng metadata trong common.PIECES.
 
     def __init__(self, side: str, is_copy: bool = False) -> None:
-        super().__init__(
-            PieceName.tiger(side),
-            PieceDetail.TIGER,
-            CellPosition.tiger(side),
-            PieceAtk.TIGER,
-            side,
-            None if is_copy else PieceAvatar.tiger(side),
-            None if is_copy else PieceArtWork.tiger(side),
-        )
+        # Gom bảy tham số ctor từ bảng metadata thay vì gọi tay bốn lớp tra cứu.
+        super().__init__(**build_piece_args(self.KEY, side, is_copy))
 
     def copy(self):
+        # Bản sao dùng cho AI: is_copy=True bỏ qua ảnh để tiết kiệm RAM.
         return Tiger(self.side, is_copy=True)

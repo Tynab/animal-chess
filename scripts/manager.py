@@ -6,6 +6,7 @@ vì dừng đột ngột.
 """
 
 from pathlib import Path
+import os
 import random
 import warnings
 
@@ -14,39 +15,102 @@ import numpy as np
 from scripts.board import Board
 from scripts.bot import Bot
 from scripts.common import BEST_MODEL_PATH, GameMode, GameState, PlayerSide, Size, SPAN
+from scripts.encoding import PIECE_ENCODING, encode_board, encode_piece
 from scripts.log import Log
+from scripts.search import SearchEngine
+
+
+class ModelEvaluator:
+    """Tách riêng toàn bộ phần "ML" ra khỏi GameManager: nạp model Keras một
+    lần duy nhất (lazy), dự đoán theo batch cho mọi nước hợp lệ, và tự hạ cấp
+    êm (trả None) khi model thiếu file hoặc không tương thích.
+
+    GameManager chỉ giữ đúng MỘT instance của lớp này (self.evaluator) và ủy
+    quyền toàn bộ việc chọn nước bằng model sang đây; bản thân GameManager
+    không còn đụng tới TensorFlow/Keras nữa.
+    """
+
+    def __init__(self, model_path) -> None:
+        # Ép kiểu Path ngay từ đầu để log lỗi/so sánh đường dẫn nhất quán.
+        self.model_path = Path(model_path)
+        # Cache model đã nạp thành công; None = "chưa nạp" hoặc "nạp hỏng".
+        self._model = None
+        # Cờ nhớ lỗi nạp: một khi đã hỏng thì coi như hỏng vĩnh viễn, không
+        # thử nạp lại ở mỗi frame/mỗi lượt đi (tránh spam I/O + traceback).
+        self._model_unavailable = False
+
+    def _load_model(self):
+        """Nạp model một lần; ghi nhớ lỗi để không thử lại ở mỗi frame."""
+
+        # Đã có sẵn trong cache -> trả về luôn, không nạp lại từ đĩa.
+        if self._model is not None:
+            return self._model
+        # Đã từng nạp lỗi ở lượt trước -> không thử lại nữa, trả None ngay.
+        if self._model_unavailable:
+            return None
+        try:
+            # Import trễ (bên trong try) để không bắt buộc cài TensorFlow
+            # khi người chơi chỉ dùng chế độ PvP/minimax, không cần AI.
+            from tensorflow.keras.models import load_model
+
+            self._model = load_model(self.model_path, compile=False)
+        except (OSError, ValueError, ImportError) as error:
+            # OSError: thiếu file/không đọc được; ValueError: định dạng .h5
+            # hỏng/không khớp kiến trúc; ImportError: chưa cài TensorFlow.
+            self._model_unavailable = True
+            # Cảnh báo đúng một lần duy nhất (không lặp lại mỗi lần gọi) rồi
+            # để nguyên self._model = None cho các lời gọi sau tự hạ cấp.
+            warnings.warn(
+                f"Không thể nạp model {self.model_path}: {error}", stacklevel=2
+            )
+        return self._model
+
+    def best_move(self, board, side):
+        """Dự đoán batch và chọn max cho phe tối, min cho phe sáng."""
+
+        # Nạp lười: chỉ chạm tới TensorFlow đúng lúc cần dự đoán nước đi.
+        model = self._load_model()
+        moves = board.get_valid_moves(side)
+        # Không có model (thiếu/hỏng) hoặc hết nước đi hợp lệ -> trả None để
+        # tầng gọi (GameManager.autoplay) tự hạ cấp sang minimax/alpha-beta.
+        if model is None or not moves:
+            return None
+
+        encoded_boards = []
+        for move in moves:
+            # Nhân bản bàn cờ (không đụng bàn thật) rồi thử từng nước ứng viên.
+            candidate = board.copy()
+            candidate.make_move(move)
+            # Mã hoá bàn cờ sau nước đi thành tensor số để đưa vào model.
+            encoded_boards.append(encode_board(Log.board_to_enum(candidate)))
+        # Gộp toàn bộ ứng viên thành một batch duy nhất -> một lần predict,
+        # nhanh hơn hẳn so với gọi predict() riêng lẻ cho từng nước.
+        batch = np.stack(encoded_boards, axis=0)[..., np.newaxis]
+        scores = np.asarray(model.predict(batch, verbose=0)).reshape(-1)
+        # Quy ước điểm số: phe tối (dark) muốn điểm cao nhất (argmax), phe
+        # sáng (light) muốn điểm thấp nhất (argmin) — cùng một model, hai
+        # hướng tối ưu đối nghịch theo phe đang đi.
+        index = int(
+            np.argmax(scores) if PlayerSide.is_dark(side) else np.argmin(scores)
+        )
+        return moves[index]
 
 
 class GameManager:
     """Giữ state ván chơi và nối UI với bàn cờ, bot, log, model AI."""
 
-    PIECE_ENCODING = {
-        "-": 0,
-        "r": 1,
-        "c": 2,
-        "d": 3,
-        "w": 4,
-        "p": 5,
-        "t": 6,
-        "l": 7,
-        "e": 8,
-        "R": -1,
-        "C": -2,
-        "D": -3,
-        "W": -4,
-        "P": -5,
-        "T": -6,
-        "L": -7,
-        "E": -8,
-    }
+    # Giữ alias để code/test cũ dùng GameManager.PIECE_ENCODING vẫn chạy được.
+    PIECE_ENCODING = PIECE_ENCODING
 
     def __init__(
         self, game_mode: int = GameMode.PvC, model_path=BEST_MODEL_PATH
     ) -> None:
         self.game_mode = game_mode
         self.model_path = Path(model_path)
-        self._model = None
-        self._model_unavailable = False
+        # Toàn bộ việc nạp model + dự đoán batch nay do ModelEvaluator lo;
+        # GameManager không còn tự giữ self._model/_model_unavailable nữa.
+        self.evaluator = ModelEvaluator(model_path)
+        self.engine = SearchEngine(time_budget_s=float(os.getenv("SEARCH_TIME_S", "1.0")))
         self.log = Log()
         self.board = Board()
         self.game_state = GameState.NEW
@@ -109,9 +173,9 @@ class GameManager:
         return True
 
     def autoplay(self) -> None:
-        """Cho máy đi bằng model; tự dùng minimax nếu model không khả dụng."""
+        """Cho máy đi bằng engine tìm kiếm alpha-beta sâu (self.engine.best_move)."""
 
-        move = self.ai_move() or self.computer_move()
+        move, _ = self.engine.best_move(self.board, self.current_side)
         if move is None:
             self.is_game_end
             return
@@ -184,45 +248,17 @@ class GameManager:
     def a_star_search_moves(self, best_moves: list[tuple]) -> list[tuple]:
         return self._route_moves(best_moves, Bot.a_star_search)
 
-    def _load_model(self):
-        """Nạp model một lần; ghi nhớ lỗi để không thử lại ở mỗi frame."""
-
-        if self._model is not None:
-            return self._model
-        if self._model_unavailable:
-            return None
-        try:
-            from tensorflow.keras.models import load_model
-
-            self._model = load_model(self.model_path, compile=False)
-        except (OSError, ValueError, ImportError) as error:
-            self._model_unavailable = True
-            warnings.warn(
-                f"Không thể nạp model {self.model_path}: {error}", stacklevel=2
-            )
-        return self._model
-
     def ai_move(self):
-        """Dự đoán batch và chọn max cho phe tối, min cho phe sáng."""
+        """Ủy quyền chọn nước cho model AI (CNN) qua self.evaluator.
 
-        model = self._load_model()
-        moves = self.board.get_valid_moves(self.current_side)
-        if model is None or not moves:
-            return None
+        Chỉ còn là lớp vỏ mỏng (thin delegator): mọi logic nạp model, dự
+        đoán batch, argmax/argmin đều nằm trong ModelEvaluator.best_move.
+        Không còn là lựa chọn mặc định của autoplay() (nay dùng
+        self.engine.best_move) — giữ lại làm nước đi tham chiếu (baseline)
+        và phục vụ các đấu trường (Rung 3) so sánh với engine tìm kiếm sâu.
+        """
 
-        encoded_boards = []
-        for move in moves:
-            candidate = self.board.copy()
-            candidate.make_move(move)
-            encoded_boards.append(self.encode_board(Log.board_to_enum(candidate)))
-        batch = np.stack(encoded_boards, axis=0)[..., np.newaxis]
-        scores = np.asarray(model.predict(batch, verbose=0)).reshape(-1)
-        index = int(
-            np.argmax(scores)
-            if PlayerSide.is_dark(self.current_side)
-            else np.argmin(scores)
-        )
-        return moves[index]
+        return self.evaluator.best_move(self.board, self.current_side)
 
     @property
     def is_game_end(self) -> bool:
@@ -233,26 +269,14 @@ class GameManager:
         self.game_result = f"{winner.upper()}\nWIN!!!" if winner else "DRAW"
         return True
 
-    @staticmethod
-    def encode_piece(piece_char: str) -> int:
-        return GameManager.PIECE_ENCODING.get(piece_char, 0)
-
-    @staticmethod
-    def encode_board(board_str: str) -> np.ndarray:
-        """Mã hóa chuỗi 63 ô thành tensor 9x7 tương thích model hiện có."""
-
-        if len(board_str) != 63:
-            raise ValueError(f"Bàn cờ phải có 63 ký tự, nhận {len(board_str)}.")
-        values = np.fromiter(
-            (GameManager.encode_piece(char) for char in reversed(board_str)),
-            dtype=np.float32,
-            count=63,
-        )
-        return np.flip(values.reshape(7, 9).T, axis=(0, 1)).copy()
+    # Giữ API cũ: GameManager.encode_board/encode_piece vẫn gọi được như trước,
+    # nhưng triển khai thật nay chỉ còn ở scripts.encoding (một nguồn sự thật).
+    encode_piece = staticmethod(encode_piece)
+    encode_board = staticmethod(encode_board)
 
     @staticmethod
     def algorithm_random(opponent_pieces: int) -> int:
-        """Tăng xác suất BFS khi số quân đối phương giảm."""
+        """Nghiêng về BFS khi đối phương còn nhiều quân; nghiêng về A* ở tàn cuộc."""
 
         bounded = max(0, min(8, opponent_pieces))
         return random.choice([1] * (8 + bounded * 2) + [2] * (24 - bounded * 2))
