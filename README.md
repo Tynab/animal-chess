@@ -97,7 +97,7 @@ Mỗi lượt máy chạy `ai_move() or computer_move()`:
 
 Ba notebook mặc định chạy ở chế độ preview: đọc dữ liệu thật, kiểm tra schema và cập nhật output nhưng không tạo file nhiều GB hoặc huấn luyện dài. Bật từng tác vụ nặng một cách tường minh trong PowerShell.
 
-> **Lưu ý:** ba notebook **không phải một chuỗi tuyến tính**. `train.ipynb` đọc thẳng `data/dark_*.csv` ở thư mục gốc (log ván thô + seed `dark_1..3.csv`), **không** dùng output của `merge`/`split`. `merge`/`split` là tiện ích tăng cường/chia dữ liệu, không bắt buộc để huấn luyện.
+> **Lưu ý:** ba notebook **không phải một chuỗi tuyến tính**. Từ Rung 3, `train.ipynb` đọc `data/selfplay_*.csv` (do `tools/selfplay.py` sinh), **không** dùng `data/dark_*.csv` hay output của `merge`/`split`. `merge`/`split` là tiện ích tăng cường/chia dữ liệu dark cũ, độc lập với huấn luyện hiện tại.
 
 ### 1. Hợp nhất và tăng cường
 
@@ -125,17 +125,24 @@ Remove-Item Env:RUN_DATA_SPLIT
 
 Đọc `data/dark.csv` và ghi nguyên tử các chunk (`.tmp` rồi đổi tên) vào `data/chunks/`. Số dòng mỗi chunk chỉnh qua `ROWS_PER_FILE` (mặc định 15000000). Muốn xóa ba file dẫn xuất sau khi chia thành công, đặt thêm `DELETE_DERIVED_SOURCES=1`.
 
-### 3. Huấn luyện model
+### 3. Huấn luyện model (Rung 3 — value học từ kết quả ván)
+
+Từ Rung 3, evaluator học từ **kết quả ván thật** (`z ∈ {-1, 0, +1}`, góc nhìn phe tối) thay vì bắt chước heuristic. Quy trình ba bước:
 
 ```powershell
-$env:RUN_MODEL_TRAINING='1'
-$env:MAX_TRAIN_ROWS='1000000'
+# a) Sinh self-play sạch (có ply-cap) -> data/selfplay_*.csv
+py tools\selfplay.py            # env: SELFPLAY_GAMES=4000, MAX_PLIES=300, OPENING_RANDOM_PLIES=6
+
+# b) Huấn luyện model outcome -> models/best_model_outcome.h5 (KHÔNG ghi đè best_model.h5)
+$env:RUN_MODEL_TRAINING='1'; $env:MAX_TRAIN_ROWS='1000000'
 py -m jupyter nbconvert --to notebook --execute --inplace train.ipynb --ExecutePreprocessor.timeout=-1
-Remove-Item Env:RUN_MODEL_TRAINING
-Remove-Item Env:MAX_TRAIN_ROWS
+Remove-Item Env:RUN_MODEL_TRAINING; Remove-Item Env:MAX_TRAIN_ROWS
+
+# c) Đấu model mới vs model cũ; promote thủ công nếu in ra ARENA_PROMOTE
+py tools\arena.py               # env: ARENA_GAMES=400
 ```
 
-Notebook mã hóa bàn cờ bằng chính `scripts.encoding.encode_board` (giống hệt lúc chơi, để train/inference nhất quán), dựng tensor `(9, 7, 1)` gồm hai khối Conv2D–BatchNorm–LeakyReLU–MaxPool, Dense 2048 có L2/Dropout và đầu ra tuyến tính một điểm. KFold 5 fold; fold có validation loss thấp nhất được lưu vào `models/best_model.h5`. Các biến điều chỉnh khác: `MAX_TRAIN_ROWS`, `READ_CHUNK_SIZE` (100000), `GPU_LIMIT_MB` (10240); seed `RANDOM_STATE=42`.
+`train.ipynb` đọc `data/selfplay_*.csv`, gán nhãn `z` qua `tools/outcome.py` (group theo `id`, kết quả ván broadcast cho mọi vị trí), mã hóa bàn bằng `scripts.encoding.encode_board` thành tensor `(9, 7, 1)`. Kiến trúc: hai khối Conv2D–BatchNorm–LeakyReLU–MaxPool, Dense 2048 (L2/Dropout) và **đầu ra `tanh`** (khớp `z`). KFold 5 fold; fold có validation loss thấp nhất lưu vào `models/best_model_outcome.h5`. `tools/arena.py` cho model mới đấu model cũ 400 ván (đổi màu, random khai cuộc) và chỉ **khuyến nghị** promote khi score ≥ 0.55 và nhị thức một phía p<0.05 — việc thay `best_model.h5` là bước thủ công. `models/best_model.h5` hiện dùng là model heuristic huấn luyện trước đó, giữ nguyên tới khi arena chứng minh model mới mạnh hơn. Biến điều chỉnh: `MAX_TRAIN_ROWS`, `GPU_LIMIT_MB` (10240); seed `RANDOM_STATE=42`.
 
 ## Schema dữ liệu
 
