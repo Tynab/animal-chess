@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.board import Board
 from scripts.bot import Bot
 from scripts.common import PlayerSide
+from scripts.log import Log
 from scripts.search import SearchEngine, search_eval, zobrist_key
 
 
@@ -65,6 +66,14 @@ def main() -> int:
     if info3["depth"] != 2:
         ok = False
         print(f"[SAI] max_depth không tôn trọng: {info3['depth']}")
+
+    # Hồi quy: best_move phải khôi phục bàn ĐÃ tìm kiếm kể cả khi hết giờ giữa chừng.
+    searched = Board(is_copy=True)
+    before_search = Log.board_to_enum(searched)
+    SearchEngine(time_budget_s=0.001).best_move(searched, PlayerSide.LIGHT)
+    if searched.move_history or Log.board_to_enum(searched) != before_search:
+        ok = False
+        print("[SAI] best_move không khôi phục bàn sau timeout")
 
     print("SEARCH_OK" if ok else "SEARCH_FAIL")
     return 0 if ok else 1

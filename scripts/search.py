@@ -110,8 +110,10 @@ class SearchEngine:
             if board.get_cell(mv[1]).piece is None:      # chỉ đào nước ăn quân
                 continue
             board.make_move(mv)
-            val = -self._quiescence(board, PlayerSide.opponent_of(side), -beta, -alpha)
-            board.undo_move(mv)
+            try:
+                val = -self._quiescence(board, PlayerSide.opponent_of(side), -beta, -alpha)
+            finally:
+                board.undo_move(mv)
             if val >= beta:
                 return beta
             if val > alpha:
@@ -151,8 +153,10 @@ class SearchEngine:
         best_val, best_move = -INF, None
         for mv in self._ordered(board, side, moves, tt_move, ply):
             board.make_move(mv)
-            val = -self._negamax(board, PlayerSide.opponent_of(side), depth - 1, -beta, -alpha, ply + 1)
-            board.undo_move(mv)
+            try:
+                val = -self._negamax(board, PlayerSide.opponent_of(side), depth - 1, -beta, -alpha, ply + 1)
+            finally:
+                board.undo_move(mv)
             if val > best_val:
                 best_val, best_move = val, mv
             if val > alpha:
@@ -200,8 +204,10 @@ class SearchEngine:
                 tt_move = tt_entry[3] if tt_entry else best
                 for mv in self._ordered(board, side, moves, tt_move, 0):
                     board.make_move(mv)
-                    val = -self._negamax(board, opponent, depth - 1, -INF, -alpha, 1)
-                    board.undo_move(mv)
+                    try:
+                        val = -self._negamax(board, opponent, depth - 1, -INF, -alpha, 1)
+                    finally:
+                        board.undo_move(mv)
                     if val > local_score:
                         local_score, local_best = val, mv
                     if val > alpha:
